@@ -43,6 +43,8 @@ private:
 	cTile m_chunk[MAP_WIDTH*MAP_HEIGHT];  
 };
 
+
+//the map made out of map chunks
 class cMap
 {
     public:
