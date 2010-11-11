@@ -1,0 +1,11 @@
+This is an unfinished project that I hope that I will soon finish.
+It will be a platform game with jump, run and shoot mechanics.
+I want the levels to be produced procedurally in time.
+
+------------------------------------------------------------------------------
+
+The map will be set into 480x320 chunks. The chunks will be loaded from a map
+file and sent to memory. Not all the chunks will be loaded into memory at a time. This way, I can load huge worlds by conserving memory. The maps can be edited
+by hand, or they can be procedurally generated, saved to disk, and then loaded into memory at a later time. 
+
+This is mostly a learning experience and should not be taken too seriously. 
