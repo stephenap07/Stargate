@@ -1,0 +1,47 @@
+#pragma once
+
+#include "Constants.h"
+#include <SFML/Graphics.hpp>
+#include <vector>
+
+class cTile
+{
+public:
+	sf::Sprite sprite;
+	int id;
+};
+
+typedef cTile[ 32 ] tileset;
+
+class cMap
+{
+    public:
+        cMap();
+        ~cMap();
+
+        bool load( const char* file );
+
+        bool save( const char* file );
+
+        void draw(sf::RenderWindow *window);
+
+        void update( float deltaTime );
+
+        int getTileType( int x, int y )
+        {
+            return 
+        }
+
+        void limitscroll();
+
+    private:
+
+        int m_width;
+        int m_height;
+
+        void freetiles();
+
+        cTile *  m_tiles;
+        cTile ** m_tile2d; 
+        tileset  m_tileset;
+};
