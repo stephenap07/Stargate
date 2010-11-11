@@ -24,9 +24,11 @@ public:
 	//intitialize id to a certain id
 	void initialize(int id=MapEdit::EDIT);
 
+	//position relative to the world map 
 	void setX(int x) {m_x = x;}
 	void setY(int y) {m_y = y;}
 
+	//set the id of a specified tile
 	void setID(int x, int y, int id =0);
 
 	int getX() {return m_x;}
@@ -44,8 +46,8 @@ private:
 class cMap
 {
     public:
-		cMap() {}
-		~cMap() {}
+   	 cMap() {}
+   	 ~cMap() {}
 
         bool load( const char* file );
 
@@ -54,6 +56,7 @@ class cMap
         void draw(sf::RenderWindow & window);
 
         int getTileID( int x, int y);
+
 
 	//editor interface
 	//ugly
