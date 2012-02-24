@@ -12,6 +12,7 @@
 //GUI context
 struct UIState
 {
+	//uistate properties
 	int mousex;
 	int mousey;
 	int mousedown;
@@ -27,18 +28,22 @@ struct UIState
     int lastwidget;
 	int lasthotitem;
 
+	//these methods need to be called from the outside
 	void imgui_prepare();
 	void imgui_finish();
 	void uiEvents(const sf::Event &aEvent, const sf::Input &input);
 
-	int regionhit(const sf::IntRect &rect);
+	//these methods are called by the widgets
+	int regionhit(const sf::FloatRect &rect);
 	bool processkeyboard(int id);
-	bool checkhot(int id, const sf::IntRect & rect);
+	bool checkhot(int id, const sf::FloatRect & rect);
 
 	static sf::RenderWindow* renderer;
+
+	UIState() :renderer(0) {}
 	
 };
-
+extern UIState uistate;
 
 static sf::Clock uiClock;
 
@@ -46,13 +51,15 @@ static sf::Clock uiClock;
 ///WIDGETS HERE
 namespace widget
 {
-	int button(UIState & ui, int id, const sf::IntRect &rect, const char* text);
+	int button(UIState & ui, int id, const sf::FloatRect &rect, const char* text, float size = 12.0f);
 
 	int buttonImage(UIState & ui, int id, int x, int y, sf::Sprite & sprite);
 	
 	//textfield for writing in: i.e. high score
-	int textfield(UIState & ui, int id, const sf::IntRect &rect, std::string &string);
+	int textfield(UIState & ui, int id, const sf::FloatRect &rect, std::string &string);
 
 	int scrollbar(UIState & ui, int id , int x, int y, int max, int &value, int width =16, int height=256);
+
+	int checkbox(UIState & ui, int id, int x, int y, bool &value, const char* title= 0);
 	
 } //widget

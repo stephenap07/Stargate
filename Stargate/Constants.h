@@ -1,37 +1,22 @@
 #pragma once
 
-const int CAMERA_WIDTH = 480;
-const int CAMERA_HEIGHT = 320;
+const int WINDOW_WIDTH = 480;
+const int WINDOW_HEIGHT = 320;
 
 const int TILE_WIDTH = 16;
-const int TILE_HEIGHT = TILE_WIDTH; 
+const int TILE_HEIGHT = 16; 
 
-const int MAP_WIDTH = CAMERA_WIDTH/TILE_WIDTH;
-const int MAP_HEIGHT = CAMERA_HEIGHT/TILE_HEIGHT;
+const int MAP_WIDTH = WINDOW_WIDTH/TILE_WIDTH;
+const int MAP_HEIGHT = WINDOW_HEIGHT/TILE_HEIGHT;
 
-const int TOTAL_TILES = 32; 
-const int TILE_NONE = TOTAL_TILES + 1;
+const int TILE_TOTAL = 32;
 
-enum Layer 
+enum LAYERS
 {
+	COLLISION =0,
 	MAIN,
-	COLLISION,
+	ENTITIES,
 	BACKGROUND,
 
-	TOTAL //2
-};
-
-enum Collision
-{
-	NONE,
-	NORMAL,
-	SLOPE_RIGHT,
-	SLOPE_LEFT,
-	ICE
-};
-
-enum MapEdit
-{
-	EDIT,
-	COLLISION
+	TOTAL
 };
