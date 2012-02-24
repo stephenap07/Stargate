@@ -104,8 +104,8 @@ int cMap::getTileID( int x, int y)
 	sf::Vector2i vec(x/MAP_WIDTH, y/MAP_HEIGHT);
 
 	//tile coordinates in relation to map chunk
-	int _x = x - vec.x*MAP_WIDTH;  //coordinates in pixels eg (0,16)
-	int _y = y - vec.y*MAP_HEIGHT;
+	int _x = x/TILE_WIDTH - vec.x*MAP_WIDTH;  //coordinates in pixels eg (0,16)
+	int _y = y/TILE_HEIGHT - vec.y*MAP_HEIGHT;
 
 	//coordinates in tile format ex (0,1)
 	_x /= TILE_WIDTH;  
@@ -123,12 +123,13 @@ int cMap::getTileID( int x, int y)
 		return -1; // or else, return error
 }
 
+//USES GLOBAL COORDINATES
 void cMap::drawTile(int id, int x, int y, sf::RenderWindow & window)
 {
 	//if the id is out of range, just return
 	if(id < 0 || id > 32) return;
 
-	m_tileset[id].SetPosition(x*TILE_WIDTH,y*TILE_HEIGHT);
+	m_tileset[id].SetPosition(x,y);
 
 	window.Draw( m_tileset[id] );
 }
@@ -146,13 +147,13 @@ void cMap::draw(sf::RenderWindow & window)
 			{
 				for(int x = 0; x < MAP_WIDTH; x++)
 				{
-					//x,y coordinates relative to the map
+					//transform local coordinates to global coordinates
 							//coor of chunk    + coor of tile of chunk 
-					int _x = it->second.getX() + x*TILE_WIDTH;
-					int _y = it->second.getY() + y*TILE_HEIGHT;
+					int _x = it->first.x*MAP_WIDTH + x*TILE_WIDTH;
+					int _y = it->first.y*MAP_HEIGHT + y*TILE_HEIGHT;
 
 					//get the tile id from the tile chunk
-					int id = it->second.getID(x,y);
+					int id = it->second.getID(_x,_y);
 
 					//if the tile is in range of the camera, then draw it 
 					//the tile cannot be TILE_NONE to be drawn
@@ -161,7 +162,7 @@ void cMap::draw(sf::RenderWindow & window)
 						&& id != TILE_NONE;
 
 					if( cameraCollide )
-						drawTile(id, x, y, window);
+						drawTile(id, _x, _y, window);
 				}
 			}
 		}
@@ -194,15 +195,24 @@ bool cMap::loadTileSheet(std::string file)
 	return true;
 }
 
-void cMap::addTile(int x, int y, int layer, int id, int collision)
+//takes global coordinates
+void cMap::setTileID(int x, int y, int layer, int id)
 {
-	if(m_map[layer].size() < (x+y*m_width))
-		return;
-	if(m_map[layer][x+y*m_width].id == id)
-		return;
+	sf::Vector2i vec = transformChunkToLocal(sf::Vector2i(x,y));
+	sf::Vector2i local = transformToLocalTile(sf::Vector2i(x,y));
 
-	m_map[layer][x+y*m_width].id = id;
-	m_map[layer][x+y*m_width].collision = collision;
+	//check if this coordinate is valid 
+	tchunk::iterator it = m_map[layer].find(vec); 
+
+	if(it == m_map[layer].end())
+	{
+		//if it's not, then make a new chunk
+		cMapChunk chunk;
+		m_map[layer].insert(std::pair<sf::Vector2i, cMapChunk>(vec, chunk));  
+	}
+
+	//set the id
+	m_map[layer][vec].setID(local.x, local.y, id);
 }
 
 void cMap::removeTile(int x, int y, int layer)

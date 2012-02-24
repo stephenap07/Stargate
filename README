@@ -9,3 +9,5 @@ file and sent to memory. Not all the chunks will be loaded into memory at a time
 by hand, or they can be procedurally generated, saved to disk, and then loaded into memory at a later time. 
 
 This is mostly a learning experience and should not be taken too seriously. 
+
+Also, I put it on Github just to learn about github. Again; learning experience.

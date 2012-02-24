@@ -68,7 +68,7 @@ class cMap
 		void setHeight(int height) {m_height = height;}
 		void initializeMap();
 
-		void addTile(int x, int y, int layer, int id, int collision);
+		void setTileID(int x, int y, int layer, int id);
 		void removeTile(int x, int y, int layer);
 		void setCollision(int x, int y, int layer, int collision);
 		
@@ -105,5 +105,25 @@ class cMap
         void freetiles()
 		{
 			m_map.clear();
+		}
+
+		//helper methods
+		sf::Vector2i transformToLocalTile(const sf::Vector2i & tile)
+		{
+			//get the map chunk the coordinate is in
+			sf::Vector2i chunk = transformChunktoLocal(tile);
+
+			//transform by subtracting how many tiles over the global tile is by how many tiles over the 
+			//chunk is; this returns the coordinates local to the chunk MAP_WIDTH*MAP_HEIGHT
+			sf::Vector2i value(tile.x/TILE_WIDTH - chunk.x*MAP_WIDTH, tile.y/TILE_HEIGHT - chunk.y*MAP_HEIGHT);
+
+			return value;
+		}
+
+		sf::Vector2i transformChunkToLocal(const sf::Vector2i &chunk)
+		{
+			sf::Vector2i value(chunk.x/CAMERA_WIDTH, chunk.y/CAMERA_HEIGHT);
+
+			return value;
 		}
 };
