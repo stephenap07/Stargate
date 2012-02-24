@@ -31,7 +31,7 @@ struct UIState
 	//these methods need to be called from the outside
 	void imgui_prepare();
 	void imgui_finish();
-	void uiEvents(const sf::Event &aEvent, const sf::Input &input);
+	void uiEvents(const sf::Event &aEvent);
 
 	//these methods are called by the widgets
 	int regionhit(const sf::FloatRect &rect);
@@ -39,10 +39,10 @@ struct UIState
 	bool checkhot(int id, const sf::FloatRect & rect);
 
 	static sf::RenderWindow* renderer;
-
-	UIState() :renderer(0) {}
 	
 };
+
+sf::RenderWindow* UIState::renderer = 0;
 extern UIState uistate;
 
 static sf::Clock uiClock;

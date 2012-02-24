@@ -33,21 +33,21 @@ static float scale = .5f;
 			activeitem = -1;
 	}
 
-	if(keyentered == sf::Key::Tab)
+	if(keyentered == sf::Keyboard::Tab)
 		kbfocus = 0;
 
 	keyentered = 0;
 	keychar = 0;
 }
 
- void UIState::uiEvents(const sf::Event &aEvent, const sf::Input &input)
+ void UIState::uiEvents(const sf::Event &aEvent)
 {
 	switch(aEvent.Type)
 	{
 	case sf::Event::MouseMoved :
 		{
-			mousex = input.GetMouseX();
-			mousey = input.GetMouseY();
+			mousex = sf::Mouse::GetPosition().x;
+			mousey = sf::Mouse::GetPosition().y;
 		} break;
 
 	case sf::Event::MouseButtonPressed:
@@ -85,7 +85,7 @@ static float scale = .5f;
 			switch(keyentered)
 			{
 				//if tab was pressed, lose keyboard focus for the next widget to pick it up
-			case sf::Key::Tab:
+			case sf::Keyboard::Tab:
 				{
 					kbfocus = 0;
 
@@ -95,7 +95,7 @@ static float scale = .5f;
 					keyentered = 0;
 				}break;
 
-			case sf::Key::Return:
+			case sf::Keyboard::Return:
 				return true; 
 			}
 		}
@@ -336,8 +336,8 @@ namespace widget
 			UIState::renderer->Draw(txt2);
 		}
 
-		if( (uiClock.GetElapsedTime() - elapsed_time) > 1.0f)
-			elapsed_time = uiClock.GetElapsedTime();
+		if( (uiClock.GetElapsedTime().AsSeconds() - elapsed_time) > 1.0f)
+			elapsed_time = uiClock.GetElapsedTime().AsSeconds();
 
 		int changed = 0;
 
