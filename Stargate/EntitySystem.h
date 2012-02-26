@@ -10,6 +10,14 @@ struct Component {
 struct Entity {
    static EntitySystem *entitySystem;
    Entity();
+   
+   ~Entity() {
+	   for( auto iter = mComponents.begin(); iter != mComponents.end(); ++iter)
+	   {
+		   delete iter->second; 
+	   }
+   }
+
    template<typename Type> Type *getAs();
    std::map<FamilyId, Component*> mComponents;
 };
