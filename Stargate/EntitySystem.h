@@ -1,5 +1,6 @@
 #include "map"
 #include "vector"
+#include <assert.h>
 
 typedef int FamilyId;
 struct EntitySystem;
@@ -28,6 +29,7 @@ struct EntitySystem {
       Entity::entitySystem = this;
    }
    template<typename T> T *getComponent(Entity *e) {
+	  assert(e->mComponents[T::familyId]);
       return (T*)e->mComponents[T::familyId];
    }
    template<typename T> void getEntities(std::vector<Entity*> &result) {

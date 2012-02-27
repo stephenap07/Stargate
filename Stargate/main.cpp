@@ -12,7 +12,16 @@ sf::Clock Clock;
 enum {
 	DRAW=1, 
 	POSITION,
-	PLAYER
+	PLAYER,
+	PHYSICS
+};
+
+enum {
+	RIGHT, 
+	LEFT, 
+	UP,
+	DOWN,
+	NONE
 };
 
 struct CompDraw : public Component
@@ -35,21 +44,37 @@ struct CompPlayer : public Component
 {
 	static const FamilyId familyId = PLAYER; 
 
-	float speedx;
+	CompPlayer() {}
+}; 
+
+struct CompPhysics : public Component
+{
+	static const FamilyId familyId = PHYSICS;
+
+	float speedx; 
 	float speedy;
 
-	CompPlayer() :speedx(0), speedy(0) {}
-}; 
+	int direction; 
+
+	CompPhysics () : speedx(200), speedy(200), direction(NONE) {}
+};
+
+struct CompFart : public Component
+{
+	static const FamilyId familyId = 12; 
+};
 
 void InitEntities()
 {
 	CompDraw *draw = new CompDraw();
 	CompPosition *pos = new CompPosition(); 
 	CompPlayer *ply = new CompPlayer();
+	CompPhysics *phy = new CompPhysics();
 
 	entitysystem.addComponent<CompDraw>(&player, draw); 
 	entitysystem.addComponent<CompPosition>(&player, pos);
 	entitysystem.addComponent<CompPlayer>(&player, ply);
+	entitysystem.addComponent<CompPhysics>(&player, phy); 
 
 	draw->texture.LoadFromFile("Data/Doctor.png");
 	draw->sprite.SetTexture(draw->texture);
@@ -73,13 +98,26 @@ void DrawEntities()
 
 void KeyboardControl(Entity *ent)
 {
-	float speed = 10.0f;
-
 	if(sf::Keyboard::IsKeyPressed(sf::Keyboard::Right))
-		ent->getAs<CompPlayer>()->speedx  = speed;
+		ent->getAs<CompPhysics>()->direction  = RIGHT;
 	else if(sf::Keyboard::IsKeyPressed(sf::Keyboard::Left))
-		ent->getAs<CompPlayer>()->speedx -= speed;
-	else ent->getAs<CompPlayer>()->speedx = 0.0f;
+		ent->getAs<CompPhysics>()->direction = LEFT;
+	else ent->getAs<CompPhysics>()->direction = NONE; 
+}
+
+void ComputePhysics(Entity* ent, sf::Time elapsed)
+{
+	float speedx = ent->getAs<CompPhysics>()->speedx; 
+
+	switch(ent->getAs<CompPhysics>()->direction) 
+	{
+	case RIGHT : 
+		ent->getAs<CompPosition>()->x += speedx*elapsed.AsSeconds(); 
+		break;
+	case LEFT  : 
+		ent->getAs<CompPosition>()->x -= speedx*elapsed.AsSeconds();
+		break;
+	}
 }
 
 void PlayerControl(sf::Time elapsed)
@@ -88,9 +126,17 @@ void PlayerControl(sf::Time elapsed)
 	entitysystem.getEntities<CompPlayer>(players);
 
 	for_each(players.begin(),players.end(),KeyboardControl); 
+}
 
-	float speedx = players[0]->getAs<CompPlayer>()->speedx; 
-	players[0]->getAs<CompPosition>()->x += speedx*elapsed.AsSeconds(); 
+void PhysicsTick(sf::Time elapsed)
+{
+	std::vector<Entity*> physObjects;
+	entitysystem.getEntities<CompPhysics>(physObjects);
+
+	for(auto iter = physObjects.begin(); iter != physObjects.end(); ++iter)
+	{
+		ComputePhysics(*iter, elapsed); 
+	}
 }
 
 int main()
@@ -113,6 +159,7 @@ int main()
 		}
 		
 		PlayerControl(Clock.GetElapsedTime());
+		PhysicsTick(Clock.GetElapsedTime());
 
         // Clear the screen with red color
         App.Clear(sf::Color(250, 250, 250));
