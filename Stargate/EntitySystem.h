@@ -1,11 +1,15 @@
 #include "map"
 #include "vector"
 #include <assert.h>
+#include <boost/function.hpp>
 
 typedef int FamilyId;
 struct EntitySystem;
 
+struct Entity;
+
 struct Component {
+	boost::function<void(Entity* ent, sf::Time elapsed)> func; 
 };
 
 struct Entity {

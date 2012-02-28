@@ -1,7 +1,8 @@
 #include <SFML/Graphics.hpp> 
 #include "EntitySystem.h"
+#include "Utilities.h"
+
 #include <algorithm>
-#include <iostream>
 
 Entity player; 
 EntitySystem entitysystem; 
@@ -13,7 +14,8 @@ enum {
 	DRAW=1, 
 	POSITION,
 	PLAYER,
-	PHYSICS
+	PHYSICS,
+	CONTROLLER
 };
 
 enum {
@@ -22,6 +24,16 @@ enum {
 	UP,
 	DOWN,
 	NONE
+};
+
+class SubSystem 
+{
+public:
+	sf::RenderWindow *app; 
+	EntitySystem *entitySystem; 
+
+	SubSystem(sf::RenderWindow *wnd, EntitySystem *es) : app(wnd), entitySystem(es) {}
+	virtual void Tick(sf::Time elapsed) = 0;
 };
 
 struct CompDraw : public Component
@@ -56,6 +68,8 @@ struct CompPhysics : public Component
 
 	int direction; 
 
+	sf::FloatRect bbox; 
+
 	CompPhysics () : speedx(200), speedy(200), direction(NONE) {}
 };
 
@@ -64,39 +78,12 @@ struct CompFart : public Component
 	static const FamilyId familyId = 12; 
 };
 
-void InitEntities()
+struct CompController : public Component 
 {
-	CompDraw *draw = new CompDraw();
-	CompPosition *pos = new CompPosition(); 
-	CompPlayer *ply = new CompPlayer();
-	CompPhysics *phy = new CompPhysics();
+	static const FamilyId familyId = CONTROLLER; 
+};
 
-	entitysystem.addComponent<CompDraw>(&player, draw); 
-	entitysystem.addComponent<CompPosition>(&player, pos);
-	entitysystem.addComponent<CompPlayer>(&player, ply);
-	entitysystem.addComponent<CompPhysics>(&player, phy); 
-
-	draw->texture.LoadFromFile("Data/Doctor.png");
-	draw->sprite.SetTexture(draw->texture);
-}
-
-void DrawEntities()
-{
-	std::vector<Entity*> drawableEntities;
-	entitysystem.getEntities<CompDraw>(drawableEntities);
-
-	for(auto iter=drawableEntities.begin(); iter != drawableEntities.end(); ++iter)
-	{
-		float x = (*iter)->getAs<CompPosition>()->x;
-		float y = (*iter)->getAs<CompPosition>()->y;
-
-		(*iter)->getAs<CompDraw>()->sprite.SetPosition(x,y);
-
-		App.Draw((*iter)->getAs<CompDraw>()->sprite); 
-	}
-}
-
-void KeyboardControl(Entity *ent)
+void keyboardControl(Entity *ent, sf::Time elapsed)
 {
 	if(sf::Keyboard::IsKeyPressed(sf::Keyboard::Right))
 		ent->getAs<CompPhysics>()->direction  = RIGHT;
@@ -105,19 +92,61 @@ void KeyboardControl(Entity *ent)
 	else ent->getAs<CompPhysics>()->direction = NONE; 
 }
 
-void ComputePhysics(Entity* ent, sf::Time elapsed)
+void simplePhysicsStep(Entity* ent, sf::Time elapsed)
 {
-	float speedx = ent->getAs<CompPhysics>()->speedx; 
+	CompPhysics  *phy = ent->getAs<CompPhysics>();
+	CompPosition *pos = ent->getAs<CompPosition>();
 
-	switch(ent->getAs<CompPhysics>()->direction) 
+	CompDraw *draw = ent->getAs<CompDraw>();
+
+	phy->bbox = draw->sprite.GetGlobalBounds();
+
+	float speedx = phy->speedx; 
+
+	switch(phy->direction) 
 	{
 	case RIGHT : 
-		ent->getAs<CompPosition>()->x += speedx*elapsed.AsSeconds(); 
+		pos->x += speedx*elapsed.AsSeconds(); 
 		break;
 	case LEFT  : 
-		ent->getAs<CompPosition>()->x -= speedx*elapsed.AsSeconds();
+		pos->x -= speedx*elapsed.AsSeconds();
 		break;
 	}
+}
+
+void DrawEntities(Entity* ent, sf::Time elapsed)
+{
+	float x = ent->getAs<CompPosition>()->x;
+	float y = ent->getAs<CompPosition>()->y;
+
+	ent->getAs<CompDraw>()->sprite.SetPosition(x,y);
+
+	App.Draw(ent->getAs<CompDraw>()->sprite); 
+}
+
+void InitEntities()
+{
+	CompDraw *draw = new CompDraw();
+	CompPosition *pos = new CompPosition(); 
+	CompPlayer *ply = new CompPlayer();
+	CompPhysics *phy = new CompPhysics();
+	CompController *cont = new CompController();
+
+	entitysystem.addComponent<CompDraw>(&player, draw); 
+	entitysystem.addComponent<CompPosition>(&player, pos);
+	entitysystem.addComponent<CompPlayer>(&player, ply);
+	entitysystem.addComponent<CompPhysics>(&player, phy); 
+	entitysystem.addComponent<CompController>(&player, cont);
+
+	phy->func  = &simplePhysicsStep; 
+	cont->func = &keyboardControl; 
+	draw->func = &DrawEntities;
+
+	phy->speedx = 300.0f; 
+	phy->speedy = 300.0f;
+
+	draw->texture.LoadFromFile("Data/Doctor.png");
+	draw->sprite.SetTexture(draw->texture);
 }
 
 void PlayerControl(sf::Time elapsed)
@@ -125,7 +154,10 @@ void PlayerControl(sf::Time elapsed)
 	std::vector<Entity*> players; 
 	entitysystem.getEntities<CompPlayer>(players);
 
-	for_each(players.begin(),players.end(),KeyboardControl); 
+	for(auto iter = players.begin(); iter != players.end(); ++iter)
+	{
+		(*iter)->getAs<CompController>()->func(*iter, elapsed);
+	}
 }
 
 void PhysicsTick(sf::Time elapsed)
@@ -135,9 +167,62 @@ void PhysicsTick(sf::Time elapsed)
 
 	for(auto iter = physObjects.begin(); iter != physObjects.end(); ++iter)
 	{
-		ComputePhysics(*iter, elapsed); 
+		(*iter)->getAs<CompPhysics>()->func(*iter, elapsed);
 	}
 }
+
+template <typename Comp> 
+void ComponentTick(sf::Time elapsed)
+{
+	std::vector<Entity*> ents; 
+	entitysystem.getEntities<Comp>(ents);
+
+	for(auto iter = ents.begin(); iter != ents.end(); ++iter)
+	{
+		(*iter)->getAs<Comp>()->func(*iter, elapsed); 
+	}
+	
+}
+
+class PhysicsSub :public SubSystem
+{
+public:
+	PhysicsSub(sf::RenderWindow *wnd, EntitySystem *es) : SubSystem(wnd, es) {}
+	virtual void Tick(sf::Time elapsed) 
+	{
+		std::vector<Entity*> ents;
+		entitySystem->getEntities<CompPhysics>(ents);
+
+		CompPhysics  *phys; 
+		CompPosition *pos; 
+
+		for(auto iter = ents.begin(); iter != ents.end(); ++iter)
+		{
+			phys = (*iter)->getAs<CompPhysics>(); 
+			pos  = (*iter)->getAs<CompPosition>(); 
+
+			//separate function
+			phys->func(*iter, elapsed); 
+
+			//separate function
+			if( (pos->x + phys->bbox.Width) > App.GetWidth() )
+			{
+				phys->direction = NONE; 
+				pos->x = App.GetWidth() - phys->bbox.Width;
+			}
+			else if( (pos->x) < 0.0f )
+			{
+				phys->direction = NONE; 
+				pos->x       = 0.0f;
+			}
+
+			//separate function
+			if( phys->bbox.Contains( (*iter)->getAs<CompPhysics>()->bbox ) )
+
+
+		}
+	}
+};
 
 int main()
 {
@@ -145,6 +230,7 @@ int main()
     App.Create(sf::VideoMode(800, 600, 32), "SFML Graphics");
 
 	InitEntities();
+	PhysicsSub physSub(&App, &entitysystem); 
 
     // Start game loop
 	while (App.IsOpen())
@@ -158,13 +244,14 @@ int main()
                 App.Close();
 		}
 		
-		PlayerControl(Clock.GetElapsedTime());
-		PhysicsTick(Clock.GetElapsedTime());
+		ComponentTick<CompController>(Clock.GetElapsedTime());
+		//ComponentTick<CompPhysics>(Clock.GetElapsedTime());
+		physSub.Tick(Clock.GetElapsedTime());
 
         // Clear the screen with red color
         App.Clear(sf::Color(250, 250, 250));
-		
-		DrawEntities();
+
+		ComponentTick<CompDraw>(Clock.GetElapsedTime());
 
         // Display window contents on screen
         App.Display();
