@@ -104,6 +104,11 @@ void mouseControl(Entity* ent, sf::Time elapsed)
 	}
 }
 
+inline sf::Vector2f interpolate(const sf::Vector2f &a, const sf::Vector2f &b, float weight)
+{
+	return a + weight*(b-a); 
+}
+
 void simplePhysicsStep(Entity* ent, sf::Time elapsed)
 {
 	CompPhysics  *phy = ent->getAs<CompPhysics>();
@@ -115,6 +120,9 @@ void simplePhysicsStep(Entity* ent, sf::Time elapsed)
 
 	float speedx = phy->speedx; 
 	float speedy = phy->speedy; 
+
+	pos->position = interpolate(pos->position, phy->target, speedx*elapsed.AsSeconds()); 
+	/*
 
 	if( pos->position.x < phy->target.x )
 	{
@@ -141,6 +149,7 @@ void simplePhysicsStep(Entity* ent, sf::Time elapsed)
 		if( pos->position.y < phy->target.y)
 			pos->position.y = phy->target.y; 
 	}
+	*/
 	
 }
 
@@ -172,10 +181,13 @@ void InitEntities()
 	cont->func = &mouseControl; 
 	draw->func = &DrawEntities;
 
-	phy->speedx = 300.0f; 
+	phy->speedx = 10.0f; 
 	phy->speedy = 300.0f;
 
-	draw->texture.LoadFromFile("Data/Doctor.png");
+	sf::Image image;
+	image.LoadFromFile("Data/doctor.png");
+	image.CreateMaskFromColor(sf::Color::White); 
+	draw->texture.LoadFromImage(image);
 	draw->sprite.SetTexture(draw->texture);
 
 	/*
@@ -290,7 +302,7 @@ public:
 int main()
 {
     // Create the main rendering window
-    App.Create(sf::VideoMode(800, 600, 32), "SFML Graphics");
+    App.Create(sf::VideoMode(320,240,32), "SFML Graphics");
 
 	InitEntities();
 	PhysicsSub physSub(&App, &entitysystem); 
