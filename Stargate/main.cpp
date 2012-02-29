@@ -3,8 +3,10 @@
 #include "Utilities.h"
 
 #include <algorithm>
+#include <math.h>
 
 Entity player; 
+Entity object; 
 EntitySystem entitysystem; 
 
 sf::RenderWindow App;
@@ -19,11 +21,11 @@ enum {
 };
 
 enum {
-	RIGHT, 
-	LEFT, 
-	UP,
-	DOWN,
-	NONE
+	NONE  = 0x0000,
+	RIGHT = 1 << 0, 
+	LEFT  = 1 << 1, 
+	UP	  = 1 << 8,
+	DOWN  = 1 << 16
 };
 
 class SubSystem 
@@ -46,10 +48,9 @@ struct CompDraw : public Component
 struct CompPosition : public Component
 {
 	static const FamilyId familyId = POSITION; 
-	float x;
-	float y; 
+	sf::Vector2f position;
 
-	CompPosition() : x(0), y(0) {}
+	CompPosition() : position(0.0f,0.0f) {}
 };
 
 struct CompPlayer : public Component
@@ -68,9 +69,11 @@ struct CompPhysics : public Component
 
 	int direction; 
 
-	sf::FloatRect bbox; 
+	sf::Vector2f target; 
 
-	CompPhysics () : speedx(200), speedy(200), direction(NONE) {}
+	sf::Rect<float> bbox; 
+
+	CompPhysics () : speedx(200), speedy(200), direction(NONE) {target=sf::Vector2f(0,0);}
 };
 
 struct CompFart : public Component
@@ -92,6 +95,15 @@ void keyboardControl(Entity *ent, sf::Time elapsed)
 	else ent->getAs<CompPhysics>()->direction = NONE; 
 }
 
+void mouseControl(Entity* ent, sf::Time elapsed)
+{
+	if(sf::Mouse::IsButtonPressed(sf::Mouse::Left))
+	{
+		ent->getAs<CompPhysics>()->target = sf::Vector2f((float)sf::Mouse::GetPosition(App).x, (float)sf::Mouse::GetPosition(App).y); 
+		std::cout << "mouse: " << ent->getAs<CompPhysics>()->target.x << ", " << ent->getAs<CompPhysics>()->target.y << std::endl;
+	}
+}
+
 void simplePhysicsStep(Entity* ent, sf::Time elapsed)
 {
 	CompPhysics  *phy = ent->getAs<CompPhysics>();
@@ -102,30 +114,48 @@ void simplePhysicsStep(Entity* ent, sf::Time elapsed)
 	phy->bbox = draw->sprite.GetGlobalBounds();
 
 	float speedx = phy->speedx; 
+	float speedy = phy->speedy; 
 
-	switch(phy->direction) 
+	if( pos->position.x < phy->target.x )
 	{
-	case RIGHT : 
-		pos->x += speedx*elapsed.AsSeconds(); 
-		break;
-	case LEFT  : 
-		pos->x -= speedx*elapsed.AsSeconds();
-		break;
+		pos->position.x += speedx*elapsed.AsSeconds(); 
+		if( pos->position.x > phy->target.x)
+			pos->position.x = phy->target.x; 
 	}
+	else if (pos->position.x > phy->target.x)
+	{
+		pos->position.x   -= speedx*elapsed.AsSeconds(); 
+		if( pos->position.x < phy->target.x)
+			pos->position.x = phy->target.x; 
+	}
+
+	if( pos->position.y < phy->target.y )
+	{
+		pos->position.y += speedy*elapsed.AsSeconds(); 
+		if( pos->position.y > phy->target.y)
+			pos->position.y = phy->target.y; 
+	}
+	else if (pos->position.y > phy->target.y)
+	{
+		pos->position.y   -= speedy*elapsed.AsSeconds(); 
+		if( pos->position.y < phy->target.y)
+			pos->position.y = phy->target.y; 
+	}
+	
 }
 
 void DrawEntities(Entity* ent, sf::Time elapsed)
 {
-	float x = ent->getAs<CompPosition>()->x;
-	float y = ent->getAs<CompPosition>()->y;
+	sf::Vector2f pos(ent->getAs<CompPosition>()->position.x,ent->getAs<CompPosition>()->position.y);
 
-	ent->getAs<CompDraw>()->sprite.SetPosition(x,y);
+	ent->getAs<CompDraw>()->sprite.SetPosition(pos);
 
 	App.Draw(ent->getAs<CompDraw>()->sprite); 
 }
 
 void InitEntities()
 {
+	//Player
 	CompDraw *draw = new CompDraw();
 	CompPosition *pos = new CompPosition(); 
 	CompPlayer *ply = new CompPlayer();
@@ -139,7 +169,7 @@ void InitEntities()
 	entitysystem.addComponent<CompController>(&player, cont);
 
 	phy->func  = &simplePhysicsStep; 
-	cont->func = &keyboardControl; 
+	cont->func = &mouseControl; 
 	draw->func = &DrawEntities;
 
 	phy->speedx = 300.0f; 
@@ -147,6 +177,27 @@ void InitEntities()
 
 	draw->texture.LoadFromFile("Data/Doctor.png");
 	draw->sprite.SetTexture(draw->texture);
+
+	/*
+	//object
+	CompDraw *draw1 = new CompDraw();
+	CompPosition *pos1 = new CompPosition(); 
+	CompPhysics *phy1 = new CompPhysics();
+
+	entitysystem.addComponent<CompDraw>(&object, draw1); 
+	entitysystem.addComponent<CompPosition>(&object, pos1);
+	entitysystem.addComponent<CompPhysics>(&object, phy1); 
+
+	phy1->func  = &simplePhysicsStep; 
+	draw1->func = &DrawEntities;
+
+	phy1->speedx = 300.0f; 
+	phy1->speedy = 300.0f;
+
+	pos1->position = sf::Vector2i(0, 300); 
+
+	draw1->sprite.SetTexture(draw->texture);
+	*/
 }
 
 void PlayerControl(sf::Time elapsed)
@@ -196,7 +247,7 @@ public:
 		CompPhysics  *phys; 
 		CompPosition *pos; 
 
-		for(auto iter = ents.begin(); iter != ents.end(); ++iter)
+		for(auto iter = ents.begin(); iter < ents.end(); ++iter)
 		{
 			phys = (*iter)->getAs<CompPhysics>(); 
 			pos  = (*iter)->getAs<CompPosition>(); 
@@ -204,21 +255,33 @@ public:
 			//separate function
 			phys->func(*iter, elapsed); 
 
+			
 			//separate function
-			if( (pos->x + phys->bbox.Width) > App.GetWidth() )
+			if( (pos->position.x + phys->bbox.Width) > App.GetWidth() )
 			{
 				phys->direction = NONE; 
-				pos->x = App.GetWidth() - phys->bbox.Width;
+				pos->position.x = App.GetWidth() - phys->bbox.Width;
 			}
-			else if( (pos->x) < 0.0f )
+			else if( (pos->position.x) < 0.0f )
 			{
 				phys->direction = NONE; 
-				pos->x       = 0.0f;
+				pos->position.x       = 0.0f;
+			}
+
+			std::vector<Entity*>::iterator iter2; 
+			if( iter != (ents.end()-1))
+			{	
+				iter2 = ++iter;
+				iter--;
 			}
 
 			//separate function
-			if( phys->bbox.Contains( (*iter)->getAs<CompPhysics>()->bbox ) )
-
+			if( (ents.size() > 1) && (iter != (ents.end()-1)) )
+				if( collides<float>(phys->bbox, (*iter2)->getAs<CompPhysics>()->bbox ) )
+				{
+					//do stuff
+				}
+				
 
 		}
 	}
@@ -249,7 +312,7 @@ int main()
 		physSub.Tick(Clock.GetElapsedTime());
 
         // Clear the screen with red color
-        App.Clear(sf::Color(250, 250, 250));
+		App.Clear(sf::Color::Black);
 
 		ComponentTick<CompDraw>(Clock.GetElapsedTime());
 

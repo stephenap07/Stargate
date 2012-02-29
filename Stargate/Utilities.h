@@ -11,7 +11,7 @@ inline bool collides(int x1, int x2, int y1, int y2, int width1, int width2, int
 	return true;
 }
 
-inline bool collides(const sf::IntRect & rect1, const sf::IntRect & rect2)
+template <typename T> inline bool collides(const sf::Rect<T> & rect1, const sf::Rect<T> & rect2)
 {
 	if( (rect1.Left + rect1.Width) < rect2.Left || (rect1.Top+rect1.Height < rect2.Top) ) return false;
 	if( (rect1.Left > rect2.Left + rect2.Width) || (rect1.Top > rect2.Top + rect2.Height) ) return false;
