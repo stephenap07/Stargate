@@ -18,7 +18,8 @@ enum {
 	POSITION,
 	PLAYER,
 	PHYSICS,
-	CONTROLLER
+	CONTROLLER,
+	COLLIDABLE
 };
 
 enum {
@@ -31,6 +32,14 @@ enum {
 
 class SubSystem 
 {
+protected:
+	template<typename T> void CallComponentFunctions(T* component, Entity* ent, sf::Time elapsed)
+	{
+		for( size_t i = 0; i < component->funcs.size(); ++i )
+		{
+			component->funcs[i](ent, elapsed); 
+		}
+	}
 public:
 	sf::RenderWindow *app; 
 	EntitySystem *entitySystem; 
@@ -87,6 +96,13 @@ struct CompController : public Component
 	static const FamilyId familyId = CONTROLLER; 
 };
 
+struct CompCollidable : public Component
+{
+	static const FamilyId familyId = COLLIDABLE;
+
+	std::vector<Entity*> collidedEntities; 
+};
+
 void keyboardControl(Entity *ent, sf::Time elapsed)
 {
 	if(sf::Keyboard::IsKeyPressed(sf::Keyboard::Right))
@@ -128,6 +144,19 @@ void DrawEntities(Entity* ent, sf::Time elapsed)
 	App.Draw(ent->getAs<CompDraw>()->sprite); 
 }
 
+void HandleCollision(Entity* ent, sf::Time elapsed)
+{
+	CompCollidable *col = ent->getAs<CompCollidable>();
+
+	if(col->collidedEntities.size() > 0)
+		for(auto iter = col->collidedEntities.begin(); iter != col->collidedEntities.end(); ++iter)
+		{
+			std::cout << "ouch!\n";
+		}
+
+	col->collidedEntities.erase(col->collidedEntities.begin(), col->collidedEntities.end());
+}
+
 template <typename Comp> 
 void ComponentTick(sf::Time elapsed)
 {
@@ -153,18 +182,17 @@ public:
 
 		CompPhysics  *phys; 
 		CompPosition *pos; 
+		CompCollidable *col;
 
 		for(auto iter = ents.begin(); iter < ents.end(); ++iter)
 		{
 			phys = (*iter)->getAs<CompPhysics>(); 
 			pos  = (*iter)->getAs<CompPosition>(); 
+			col  = (*iter)->getAs<CompCollidable>();
 
 			//process functions from physics components
-			for( size_t i = 0; i < phys->funcs.size(); ++i )
-			{
-				phys->funcs[i]((*iter), elapsed); 
-			}
-
+			CallComponentFunctions<CompPhysics>(phys, (*iter), elapsed);
+			CallComponentFunctions<CompCollidable>(col, (*iter), elapsed);
 			
 			//check wall collisions
 			if( (pos->position.x + phys->bbox.Width) > App.GetWidth() )
@@ -190,7 +218,8 @@ public:
 			if( (ents.size() > 1) && (iter != (ents.end()-1)) )
 				if( collides<float>(phys->bbox, (*iter2)->getAs<CompPhysics>()->bbox ) )
 				{
-					//do stuff
+					col->collidedEntities.push_back(*iter2); 
+					(*iter2)->getAs<CompCollidable>()->collidedEntities.push_back(*iter); 
 				}
 				
 
@@ -206,16 +235,19 @@ void InitEntities()
 	CompPlayer *ply = new CompPlayer();
 	CompPhysics *phy = new CompPhysics();
 	CompController *cont = new CompController();
+	CompCollidable *col = new CompCollidable();
 
 	entitysystem.addComponent<CompDraw>(&player, draw); 
 	entitysystem.addComponent<CompPosition>(&player, pos);
 	entitysystem.addComponent<CompPlayer>(&player, ply);
 	entitysystem.addComponent<CompPhysics>(&player, phy); 
 	entitysystem.addComponent<CompController>(&player, cont);
+	entitysystem.addComponent<CompCollidable>(&player, col); 
 
 	phy->funcs.push_back(&simplePhysicsStep); 
 	cont->funcs.push_back(&mouseControl); 
 	draw->funcs.push_back(&DrawEntities);
+	col->funcs.push_back(&HandleCollision);
 
 	phy->speedx = 10.0f; 
 	phy->speedy = 300.0f;
@@ -226,26 +258,27 @@ void InitEntities()
 	draw->texture.LoadFromImage(image);
 	draw->sprite.SetTexture(draw->texture);
 
-	/*
 	//object
 	CompDraw *draw1 = new CompDraw();
 	CompPosition *pos1 = new CompPosition(); 
 	CompPhysics *phy1 = new CompPhysics();
+	CompCollidable *col1 = new CompCollidable();
 
 	entitysystem.addComponent<CompDraw>(&object, draw1); 
 	entitysystem.addComponent<CompPosition>(&object, pos1);
 	entitysystem.addComponent<CompPhysics>(&object, phy1); 
+	entitysystem.addComponent<CompCollidable>(&object, col1);
 
-	phy1->func  = &simplePhysicsStep; 
-	draw1->func = &DrawEntities;
+	phy1->funcs.push_back(&simplePhysicsStep); 
+	draw1->funcs.push_back(&DrawEntities);
+	col1->funcs.push_back(&HandleCollision);
 
 	phy1->speedx = 300.0f; 
 	phy1->speedy = 300.0f;
 
-	pos1->position = sf::Vector2i(0, 300); 
+	pos1->position = sf::Vector2f(0, 300); 
 
 	draw1->sprite.SetTexture(draw->texture);
-	*/
 }
 
 int main()
@@ -258,6 +291,10 @@ int main()
 	InitEntities();
 	PhysicsSub physSub(&App, &entitysystem); 
 
+	bool inventory = false;
+	int invX; 
+	int invY;
+
     // Start game loop
 	while (App.IsOpen())
     {
@@ -269,10 +306,17 @@ int main()
             // Close window : exit
             if (Event.Type == sf::Event::Closed)
                 App.Close();
+			if(Event.Type == sf::Event::MouseButtonPressed && Event.MouseButton.Button == sf::Mouse::Right)
+			{
+				inventory = !inventory;
+				if(inventory)
+					invX = sf::Mouse::GetPosition(App).x;
+					invY = sf::Mouse::GetPosition(App).y; 
+			}
 		}
 		
 		ComponentTick<CompController>(Clock.GetElapsedTime());
-		//ComponentTick<CompPhysics>(Clock.GetElapsedTime());
+
 		physSub.Tick(Clock.GetElapsedTime());
 
         // Clear the screen with red color
@@ -281,7 +325,9 @@ int main()
 		ComponentTick<CompDraw>(Clock.GetElapsedTime());
 
 		uistate.imgui_prepare();
-		widget::button(uistate, GEN_ID, sf::Vector2f(100, 30), sf::Vector2f(10, 10), "button", 24);
+		widget::button(uistate, GEN_ID, sf::Vector2f(100, 30), sf::Vector2f(520, 10), "button", 24);
+		if(inventory)
+			widget::button(uistate, GEN_ID, sf::Vector2f(100, 30), sf::Vector2f(invX, invY), "inventory", 20);
 		uistate.imgui_finish();
 
         // Display window contents on screen
