@@ -1,6 +1,7 @@
 #include <SFML/Graphics.hpp> 
 #include "EntitySystem.h"
 #include "Utilities.h"
+#include "imgui.h"
 
 #include <algorithm>
 #include <math.h>
@@ -95,62 +96,27 @@ void keyboardControl(Entity *ent, sf::Time elapsed)
 	else ent->getAs<CompPhysics>()->direction = NONE; 
 }
 
-void mouseControl(Entity* ent, sf::Time elapsed)
-{
-	if(sf::Mouse::IsButtonPressed(sf::Mouse::Left))
-	{
-		ent->getAs<CompPhysics>()->target = sf::Vector2f((float)sf::Mouse::GetPosition(App).x, (float)sf::Mouse::GetPosition(App).y); 
-		std::cout << "mouse: " << ent->getAs<CompPhysics>()->target.x << ", " << ent->getAs<CompPhysics>()->target.y << std::endl;
-	}
-}
-
 inline sf::Vector2f interpolate(const sf::Vector2f &a, const sf::Vector2f &b, float weight)
 {
 	return a + weight*(b-a); 
 }
 
+void mouseControl(Entity* ent, sf::Time elapsed)
+{
+	if(sf::Mouse::IsButtonPressed(sf::Mouse::Left))
+	{
+		ent->getAs<CompPhysics>()->target = sf::Vector2f((float)sf::Mouse::GetPosition(App).x, (float)sf::Mouse::GetPosition(App).y); 
+	}
+	ent->getAs<CompPosition>()->position = interpolate(ent->getAs<CompPosition>()->position, ent->getAs<CompPhysics>()->target, ent->getAs<CompPhysics>()->speedx*elapsed.AsSeconds()); 
+}
+
 void simplePhysicsStep(Entity* ent, sf::Time elapsed)
 {
 	CompPhysics  *phy = ent->getAs<CompPhysics>();
-	CompPosition *pos = ent->getAs<CompPosition>();
 
 	CompDraw *draw = ent->getAs<CompDraw>();
 
 	phy->bbox = draw->sprite.GetGlobalBounds();
-
-	float speedx = phy->speedx; 
-	float speedy = phy->speedy; 
-
-	pos->position = interpolate(pos->position, phy->target, speedx*elapsed.AsSeconds()); 
-	/*
-
-	if( pos->position.x < phy->target.x )
-	{
-		pos->position.x += speedx*elapsed.AsSeconds(); 
-		if( pos->position.x > phy->target.x)
-			pos->position.x = phy->target.x; 
-	}
-	else if (pos->position.x > phy->target.x)
-	{
-		pos->position.x   -= speedx*elapsed.AsSeconds(); 
-		if( pos->position.x < phy->target.x)
-			pos->position.x = phy->target.x; 
-	}
-
-	if( pos->position.y < phy->target.y )
-	{
-		pos->position.y += speedy*elapsed.AsSeconds(); 
-		if( pos->position.y > phy->target.y)
-			pos->position.y = phy->target.y; 
-	}
-	else if (pos->position.y > phy->target.y)
-	{
-		pos->position.y   -= speedy*elapsed.AsSeconds(); 
-		if( pos->position.y < phy->target.y)
-			pos->position.y = phy->target.y; 
-	}
-	*/
-	
 }
 
 void DrawEntities(Entity* ent, sf::Time elapsed)
@@ -161,6 +127,76 @@ void DrawEntities(Entity* ent, sf::Time elapsed)
 
 	App.Draw(ent->getAs<CompDraw>()->sprite); 
 }
+
+template <typename Comp> 
+void ComponentTick(sf::Time elapsed)
+{
+	std::vector<Entity*> ents; 
+	entitysystem.getEntities<Comp>(ents);
+
+	for(auto iter = ents.begin(); iter != ents.end(); ++iter)
+	{
+		for(size_t i = 0; i < (*iter)->getAs<Comp>()->funcs.size(); ++i)
+			(*iter)->getAs<Comp>()->funcs[i](*iter, elapsed); 		
+	}
+	
+}
+
+class PhysicsSub :public SubSystem
+{
+public:
+	PhysicsSub(sf::RenderWindow *wnd, EntitySystem *es) : SubSystem(wnd, es) {}
+	virtual void Tick(sf::Time elapsed) 
+	{
+		std::vector<Entity*> ents;
+		entitySystem->getEntities<CompPhysics>(ents);
+
+		CompPhysics  *phys; 
+		CompPosition *pos; 
+
+		for(auto iter = ents.begin(); iter < ents.end(); ++iter)
+		{
+			phys = (*iter)->getAs<CompPhysics>(); 
+			pos  = (*iter)->getAs<CompPosition>(); 
+
+			//process functions from physics components
+			for( size_t i = 0; i < phys->funcs.size(); ++i )
+			{
+				phys->funcs[i]((*iter), elapsed); 
+			}
+
+			
+			//check wall collisions
+			if( (pos->position.x + phys->bbox.Width) > App.GetWidth() )
+			{
+				phys->direction = NONE; 
+				pos->position.x = App.GetWidth() - phys->bbox.Width;
+			}
+			else if( (pos->position.x) < 0.0f )
+			{
+				phys->direction = NONE; 
+				pos->position.x       = 0.0f;
+			}
+
+			//check entity collision
+			std::vector<Entity*>::iterator iter2; 
+			if( iter != (ents.end()-1))
+			{	
+				iter2 = ++iter;
+				iter--;
+			}
+
+			//separate function
+			if( (ents.size() > 1) && (iter != (ents.end()-1)) )
+				if( collides<float>(phys->bbox, (*iter2)->getAs<CompPhysics>()->bbox ) )
+				{
+					//do stuff
+				}
+				
+
+		}
+	}
+};
 
 void InitEntities()
 {
@@ -177,9 +213,9 @@ void InitEntities()
 	entitysystem.addComponent<CompPhysics>(&player, phy); 
 	entitysystem.addComponent<CompController>(&player, cont);
 
-	phy->func  = &simplePhysicsStep; 
-	cont->func = &mouseControl; 
-	draw->func = &DrawEntities;
+	phy->funcs.push_back(&simplePhysicsStep); 
+	cont->funcs.push_back(&mouseControl); 
+	draw->funcs.push_back(&DrawEntities);
 
 	phy->speedx = 10.0f; 
 	phy->speedy = 300.0f;
@@ -212,97 +248,12 @@ void InitEntities()
 	*/
 }
 
-void PlayerControl(sf::Time elapsed)
-{
-	std::vector<Entity*> players; 
-	entitysystem.getEntities<CompPlayer>(players);
-
-	for(auto iter = players.begin(); iter != players.end(); ++iter)
-	{
-		(*iter)->getAs<CompController>()->func(*iter, elapsed);
-	}
-}
-
-void PhysicsTick(sf::Time elapsed)
-{
-	std::vector<Entity*> physObjects;
-	entitysystem.getEntities<CompPhysics>(physObjects);
-
-	for(auto iter = physObjects.begin(); iter != physObjects.end(); ++iter)
-	{
-		(*iter)->getAs<CompPhysics>()->func(*iter, elapsed);
-	}
-}
-
-template <typename Comp> 
-void ComponentTick(sf::Time elapsed)
-{
-	std::vector<Entity*> ents; 
-	entitysystem.getEntities<Comp>(ents);
-
-	for(auto iter = ents.begin(); iter != ents.end(); ++iter)
-	{
-		(*iter)->getAs<Comp>()->func(*iter, elapsed); 
-	}
-	
-}
-
-class PhysicsSub :public SubSystem
-{
-public:
-	PhysicsSub(sf::RenderWindow *wnd, EntitySystem *es) : SubSystem(wnd, es) {}
-	virtual void Tick(sf::Time elapsed) 
-	{
-		std::vector<Entity*> ents;
-		entitySystem->getEntities<CompPhysics>(ents);
-
-		CompPhysics  *phys; 
-		CompPosition *pos; 
-
-		for(auto iter = ents.begin(); iter < ents.end(); ++iter)
-		{
-			phys = (*iter)->getAs<CompPhysics>(); 
-			pos  = (*iter)->getAs<CompPosition>(); 
-
-			//separate function
-			phys->func(*iter, elapsed); 
-
-			
-			//separate function
-			if( (pos->position.x + phys->bbox.Width) > App.GetWidth() )
-			{
-				phys->direction = NONE; 
-				pos->position.x = App.GetWidth() - phys->bbox.Width;
-			}
-			else if( (pos->position.x) < 0.0f )
-			{
-				phys->direction = NONE; 
-				pos->position.x       = 0.0f;
-			}
-
-			std::vector<Entity*>::iterator iter2; 
-			if( iter != (ents.end()-1))
-			{	
-				iter2 = ++iter;
-				iter--;
-			}
-
-			//separate function
-			if( (ents.size() > 1) && (iter != (ents.end()-1)) )
-				if( collides<float>(phys->bbox, (*iter2)->getAs<CompPhysics>()->bbox ) )
-				{
-					//do stuff
-				}
-				
-
-		}
-	}
-};
-
 int main()
 {
     // Create the main rendering window
-    App.Create(sf::VideoMode(320,240,32), "SFML Graphics");
+    App.Create(sf::VideoMode(640,480,32), "SFML Graphics");
+	UIState uistate;
+	uistate.renderer = &App;
 
 	InitEntities();
 	PhysicsSub physSub(&App, &entitysystem); 
@@ -314,6 +265,7 @@ int main()
         sf::Event Event;
 		while (App.PollEvent(Event))
         {
+			uistate.uiEvents(Event);
             // Close window : exit
             if (Event.Type == sf::Event::Closed)
                 App.Close();
@@ -327,6 +279,10 @@ int main()
 		App.Clear(sf::Color::Black);
 
 		ComponentTick<CompDraw>(Clock.GetElapsedTime());
+
+		uistate.imgui_prepare();
+		widget::button(uistate, GEN_ID, sf::Vector2f(100, 30), sf::Vector2f(10, 10), "button", 24);
+		uistate.imgui_finish();
 
         // Display window contents on screen
         App.Display();

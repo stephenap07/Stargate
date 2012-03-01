@@ -38,12 +38,9 @@ struct UIState
 	bool processkeyboard(int id);
 	bool checkhot(int id, const sf::FloatRect & rect);
 
-	static sf::RenderWindow* renderer;
+	sf::RenderWindow* renderer;
 	
 };
-
-sf::RenderWindow* UIState::renderer = 0;
-extern UIState uistate;
 
 static sf::Clock uiClock;
 
@@ -51,7 +48,7 @@ static sf::Clock uiClock;
 ///WIDGETS HERE
 namespace widget
 {
-	int button(UIState & ui, int id, const sf::FloatRect &rect, const char* text, float size = 12.0f);
+	int button(UIState & ui, int id, const sf::Vector2f &widthheight, const sf::Vector2f &pos, const char* text, float size = 12.0f);
 
 	int buttonImage(UIState & ui, int id, int x, int y, sf::Sprite & sprite);
 	

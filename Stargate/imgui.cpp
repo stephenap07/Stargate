@@ -46,8 +46,8 @@ static float scale = .5f;
 	{
 	case sf::Event::MouseMoved :
 		{
-			mousex = sf::Mouse::GetPosition().x;
-			mousey = sf::Mouse::GetPosition().y;
+			mousex = sf::Mouse::GetPosition(*renderer).x;
+			mousey = sf::Mouse::GetPosition(*renderer).y;
 		} break;
 
 	case sf::Event::MouseButtonPressed:
@@ -103,66 +103,76 @@ static float scale = .5f;
 	return false;
 }
 
- inline void RenderText(const char* text, float x, float y, const sf::Color &color = sf::Color::White, float size = 12.0f)
+ inline void RenderText(UIState &ui, const char* text, float x, float y, const sf::Color &color = sf::Color::White, unsigned size = 12)
  {
-	 //set string parameters
-	 sf::String string(text);
 	 //new stuff from sfml2
+	 sf::String str(text);
 	 sf::Text txt; 
+	 txt.SetString(str);
 	 txt.SetCharacterSize(size);
 	 //set center the string
-	 txt.SetOrigin(txt.GetRect().Width/2, txt.GetRect().Height/2);
+	 txt.SetOrigin(txt.GetLocalBounds().Width/2, txt.GetLocalBounds().Height/2);
 	 txt.SetPosition(x, y);
 
 	 //drop shadow
 	 txt.SetColor(sf::Color(0,0,0,255/2));
 	 txt.Move(3,3);
-	 UIState::renderer->Draw(txt);
+	 ui.renderer->Draw(txt);
 
 	 //draw the string
 	 txt.SetColor(color);
 	 txt.Move(-3,-3);
 	 
-	 UIState::renderer->Draw(txt);
+	 ui.renderer->Draw(txt);
  }
 
 bool UIState::checkhot(int id, const sf::FloatRect & rect)
 {
 	if(regionhit(rect))
+	{
+		hotitem =id;
+
+		if(activeitem == 0 && mousedown)
 		{
-			hotitem =id;
-
-			if(activeitem == 0 && mousedown)
-			{
-				activeitem = id;
-			}
-
-			return true;
+			activeitem = id;
 		}
 
-		else if(lasthotitem == id)
-		{
-			lasthotitem  = 0;
-		}
+		return true;
+	}
+
+	else if(lasthotitem == id)
+	{
+		lasthotitem  = 0;
+	}
 
 	return false;
 }
 
 namespace widget
 {
-	int button(UIState &ui, int id, const sf::FloatRect &rect, const char* text, float size)
+	int button(UIState &ui, int id, const sf::Vector2f &widthheight, const sf::Vector2f &pos, const char* text, float size)
 	{
+		//rectangle description
+		float outline = 0;
+		sf::Color outlinecolor(sf::Color(255,0,255));
 
-		if(ui.checkhot(id, rect))
+		sf::Color fillColor = sf::Color(127, 127, 127, 127); 
+
+		sf::RectangleShape button(widthheight);
+		button.SetFillColor(fillColor); 
+		button.SetOutlineColor(outlinecolor); 
+		button.SetOutlineThickness(outline);
+		button.SetPosition(pos);
+
+		sf::FloatRect rect = button.GetGlobalBounds();
+
+		if( ui.checkhot( id, button.GetGlobalBounds() ) )
 		{
 			if(ui.lasthotitem != id)
 			{
 				ui.lasthotitem = id;
 			}
 		}
-
-		float outline = 0;
-		sf::Color outlinecolor(sf::Color(255,0,255));
 
 		//checking keyboard focus
 		if(ui.kbfocus == 0)
@@ -172,17 +182,15 @@ namespace widget
 		if(ui.kbfocus == id)
 		{
 			outline = 2.5f;
+			button.SetOutlineThickness(outline);
 		}
 	
 
 		//render the button
 
-		sf::Shape button = sf::Shape::Rectangle(rect, sf::Color(127,127,127), outline, outlinecolor);
-		button.EnableOutline(false);
-
 		button.Move(4,4);
 
-		UIState::renderer->Draw(button);
+		ui.renderer->Draw(button);
 
 		button.Move(-4,-4);
 
@@ -192,24 +200,23 @@ namespace widget
 			{
 				button.Move(4,4);
 
-				UIState::renderer->Draw(button);
-				RenderText(text, rect.Left + rect.Width/2 + 4, rect.Top + rect.Height/2 + 4, sf::Color(255,255,255), size);
+				ui.renderer->Draw(button);
+				RenderText(ui, text, rect.Left + rect.Width/2 + 4, rect.Top + rect.Height/2 + 4, sf::Color(255,255,255), size);
 			}
 			else 
 			{
-				button.SetColor(sf::Color(255,255,255));
-				UIState::renderer->Draw(button);
-				RenderText(text, rect.Left + rect.Width/2, rect.Top + rect.Height/2, sf::Color(255,255,255), size);
+				button.SetFillColor(sf::Color(127,127,127,255));
+				ui.renderer->Draw(button);
+				RenderText(ui, text, rect.Left + rect.Width/2, rect.Top + rect.Height/2, sf::Color(255,255,255), size);
 			}
 		}
 
 		else 
 		{
-			button.SetColor(sf::Color(127,127,127,255/1.5));
-			button.EnableOutline(true);
+			button.SetFillColor(sf::Color(127,127,127,255/2));
 
-			UIState::renderer->Draw(button);
-			RenderText(text,rect.Left + rect.Width/2, rect.Top + rect.Height/2, sf::Color(255,255,255), size);
+			ui.renderer->Draw(button);
+			RenderText(ui, text,rect.Left + rect.Width/2, rect.Top + rect.Height/2, sf::Color(255,255,255,255/2), size);
 		}
 
 		//if enter was pressed and we have keyboard focus
@@ -229,7 +236,7 @@ namespace widget
 
 	int buttonImage(UIState &ui, int id, int x, int y, sf::Sprite & sprite)
 	{
-		sf::FloatRect rect(x, y, x+sprite.GetSubRect().Width, y+sprite.GetSubRect().Height);
+		sf::FloatRect rect(x, y, x+sprite.GetLocalBounds().Width, y+sprite.GetLocalBounds().Height);
 		sprite.SetPosition(x,y);
 
 		if(ui.checkhot(id, rect))
@@ -253,7 +260,7 @@ namespace widget
 		}
 
 		color.a = 255;
-		UIState::renderer->Draw(sprite);
+		ui.renderer->Draw(sprite);
 
 		//turns the sprite back to normal
 		sprite.SetColor(color);
@@ -270,9 +277,26 @@ namespace widget
 	}
 
 	//textfield for writing in: i.e. high score
-	int textfield(UIState &ui, int id, const sf::FloatRect &rect, std::string &string)
+	int textfield(UIState &ui, int id, const sf::Vector2f &widthheight, std::string &string)
 	{
 		static float elapsed_time = 0;
+
+		float outline = 0;
+		sf::Color outlinecolor(sf::Color(255,0,255));
+
+		//set up shapes and strings
+		sf::RectangleShape field ( widthheight );
+		field.SetFillColor( sf::Color(127,127,127) );
+		field.SetOutlineThickness( outline );
+		field.SetOutlineColor( outlinecolor );
+
+		sf::String str( string );
+		sf::Text txt( str );
+
+		sf::FloatRect rect = field.GetGlobalBounds();
+
+		txt.SetScale(scale,scale);
+		txt.SetPosition(rect.Left+8,rect.Top+6);
 
 		//checking hotness
 		if( ui.regionhit(rect) )
@@ -286,54 +310,42 @@ namespace widget
 		if(ui.kbfocus == 0)
 			ui.kbfocus = id;
 
-		float outline = 0;
-		sf::Color outlinecolor(sf::Color(255,0,255));
-
 		//if it has keyboard focus, set up outline 
 		if(ui.kbfocus == id)
 		{
 			outline = 1.5f;
+			field.SetOutlineThickness(outline);
 		}
-
-		//set up shapes and strings
-		sf::Shape field = sf::Shape::Rectangle( rect, sf::Color(127,127,127), outline, outlinecolor );
-		field.EnableOutline(false);
-
-		sf::String str(string);
-		sf::Text txt(str);
-
-		txt.SetScale(scale,scale);
-		txt.SetPosition(rect.Left+8,rect.Top+6);
 
 		//draw if it is active or hot
 		if(ui.activeitem == id || ui.hotitem == id)
 		{
-			UIState::renderer->Draw(field);
+			ui.renderer->Draw(field);
 		}
 
 		//or just normal...
 		else 
 		{
-			field.SetColor(sf::Color(127,127,127, 255/2));
+			field.SetFillColor(sf::Color(127,127,127, 255/2));
 			if(ui.kbfocus == id)
-				field.EnableOutline(true);
+				field.SetOutlineThickness(0.0f);
 
-			UIState::renderer->Draw(field);
+			ui.renderer->Draw(field);
 		}
 
 		//draw the text
-		UIState::renderer->Draw(txt);
+		ui.renderer->Draw(txt);
 		
 		sf::String caret("_");
 		sf::Text txt2(caret);
 
 		txt2.SetScale(scale,scale);
 
-		txt2.SetPosition(txt2.GetRect().Width + txt2.GetRect().Left, rect.Top+4);
+		txt2.SetPosition(txt2.GetGlobalBounds().Width + txt2.GetGlobalBounds().Left, rect.Top+4);
 
-		if(ui.kbfocus == id && (uiClock.GetElapsedTime() - elapsed_time) > 0.75f) 
+		if(ui.kbfocus == id && (uiClock.GetElapsedTime().AsSeconds() - elapsed_time) > 0.75f) 
 		{
-			UIState::renderer->Draw(txt2);
+			ui.renderer->Draw(txt2);
 		}
 
 		if( (uiClock.GetElapsedTime().AsSeconds() - elapsed_time) > 1.0f)
@@ -346,7 +358,7 @@ namespace widget
 		{
 			switch(ui.keyentered)
 			{
-			case sf::Key::Tab:
+			case sf::Keyboard::Tab:
 				{
 					ui.kbfocus = 0;
 
@@ -355,7 +367,7 @@ namespace widget
 
 					ui.keyentered = 0;
 				} break;
-			case sf::Key::Back:
+			case sf::Keyboard::Back:
 				{
 					if(string.length() > 0)
 					{
@@ -365,7 +377,7 @@ namespace widget
 				} break;
 			}
 
-			if(ui.keychar >= 32 && ui.keychar < 127 && txt.GetRect().Width < rect.Width -18)
+			if(ui.keychar >= 32 && ui.keychar < 127 && txt.GetGlobalBounds().Width < rect.Width -18)
 			{
 				string.push_back(ui.keychar);
 				changed = 1;
@@ -396,16 +408,22 @@ namespace widget
 				ui.activeitem = id;
 		}
 
-		sf::Shape bar = sf::Shape::Rectangle(sf::FloatRect(x, y, width, height+16), sf::Color(10,10,10,255/2));
-		sf::Shape nub = sf::Shape::Rectangle(sf::FloatRect(x+width/3,y+width/3 + ypos, width/3 + width/2, width/3 + ypos + width/2), sf::Color(255,255,255,255/2));
-		UIState::renderer->Draw(bar);
+		sf::RectangleShape bar(sf::Vector2f(width, height+16));
+		bar.SetPosition(x,y);
+		bar.SetFillColor(sf::Color(10,10,10,255/2));
+
+		sf::RectangleShape nub( sf::Vector2f(width/3 + width/2, width/3 + ypos + width/2) );
+		nub.SetPosition(x+width/3,y+width/3 + ypos); 
+		nub.SetFillColor(sf::Color(255,255,255,255/2));
+
+		ui.renderer->Draw(bar);
 
 		if(ui.activeitem == id || ui.hotitem == id)
 		{
-			nub.SetColor(sf::Color(255,255,255,255));
-			UIState::renderer->Draw(nub);
+			nub.SetFillColor(sf::Color(255,255,255,255));
+			ui.renderer->Draw(nub);
 		}
-		else UIState::renderer->Draw(nub);
+		else ui.renderer->Draw(nub);
 
 		if(ui.activeitem == id)
 		{
@@ -440,43 +458,43 @@ namespace widget
 		}
 
 		//color ranges
-		float colorvalue = 255/1.5;
+		sf::Uint8 colorvalue = 255/1.5;
 		const sf::Color color1(colorvalue, colorvalue, colorvalue, colorvalue);
 		const sf::Color color2(colorvalue, colorvalue, colorvalue, colorvalue*2);
 		const sf::Color activeColor(255,255,40, colorvalue);
 
-		sf::Shape box = sf::Shape::Rectangle(x, y, rect.Left + rect.Width, rect.Height, color1, 2.0f);
+		sf::RectangleShape box( sf::Vector2f(rect.Left + rect.Width, rect.Height) );
+		box.SetPosition(x,y);
+		box.SetOutlineColor(color1);
+		box.SetOutlineThickness(2.0f);
 
-		box.EnableOutline(true);
-		box.EnableFill(true);
-
-		box.SetColor(color2);
+		box.SetFillColor(color2);
 
 		//set color to a yellow color if the value is true
 		if(value)
 		{
-			box.SetColor(activeColor);
+			box.SetFillColor(activeColor);
 		}
 
-		UIState::renderer->Draw(box);
+		ui.renderer->Draw(box);
 
 		if(title)
 		{
 			sf::String string(title);
 			sf::Text txt1(string);
-			txt1.SetCharacterSize(11.0f);
+			txt1.SetCharacterSize(11);
 
 			txt1.SetPosition(rect.Left + rect.Width + 2, rect.Top);
 
-			UIState::renderer->Draw(txt1);
+			ui.renderer->Draw(txt1);
 		}
 
 
 		//mouse over = alpha value raises
 		if(ui.hotitem == id || ui.activeitem == id)
 		{
-			box.SetColor( sf::Color(box.GetColor().r, box.GetColor().g, box.GetColor().b, 255) );
-			UIState::renderer->Draw(box);
+			box.SetFillColor( sf::Color(box.GetFillColor().r, box.GetFillColor().g, box.GetFillColor().b, 255) );
+			ui.renderer->Draw(box);
 		}
 
 		if (ui.mousedown == 0

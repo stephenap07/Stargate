@@ -11,7 +11,7 @@ struct EntitySystem;
 struct Entity;
 
 struct Component {
-	boost::function<void(Entity* ent, sf::Time elapsed)> func; 
+	std::vector< boost::function<void(Entity* ent, sf::Time elapsed)> > funcs; 
 };
 
 struct Entity {
