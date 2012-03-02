@@ -1,1 +1,4 @@
 An Adventure game involving surgery, zombies, and rhythm mechanics placed in a mall.
+
+Uses sfml2 and boost 1.4.8
+Uses component based entity system. 

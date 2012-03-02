@@ -19,10 +19,7 @@ struct Entity {
    Entity();
    
    ~Entity() {
-	   for( auto iter = mComponents.begin(); iter != mComponents.end(); ++iter)
-	   {
-		   delete iter->second; 
-	   }
+	   std::cout << "entity destroyed\n";
    }
 
    template<typename Type> Type *getAs();
@@ -50,8 +47,25 @@ struct EntitySystem {
    }
 
    void deleteEntity(Entity *e) {
-      //Scan Entity Components and get familyIds, then I know what to delete in the ComponentStore
-      delete e;
+	   /*
+	   for(auto it = e->mComponents.begin(); it != e->mComponents.end(); ++it)
+	   {
+		   auto iterPair = mComponentStore.equal_range(it->first);
+		   iterPair
+		   delete it->second; 
+	   }
+	   e->mComponents.erase(e->mComponents.begin(), e->mComponents.end());
+	   delete e;
+	   */
+   }
+
+   void deleteAllEntities() {
+	   for(auto it = mComponentStore.begin(); it != mComponentStore.end(); ++it)
+	   {
+		   Entity *ent = it->second;
+		   mComponentStore.erase(it);
+		   deleteEntity(ent);
+	   }
    }
 protected:
    std::multimap<FamilyId, Entity*> mComponentStore;

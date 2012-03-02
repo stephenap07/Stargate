@@ -6,7 +6,6 @@
 #include <algorithm>
 #include <math.h>
 
-Entity player; 
 Entity object; 
 EntitySystem entitysystem; 
 
@@ -163,6 +162,9 @@ void ComponentTick(sf::Time elapsed)
 	std::vector<Entity*> ents; 
 	entitysystem.getEntities<Comp>(ents);
 
+	if(ents.empty())
+		return;
+
 	for(auto iter = ents.begin(); iter != ents.end(); ++iter)
 	{
 		for(size_t i = 0; i < (*iter)->getAs<Comp>()->funcs.size(); ++i)
@@ -179,6 +181,9 @@ public:
 	{
 		std::vector<Entity*> ents;
 		entitySystem->getEntities<CompPhysics>(ents);
+
+		if(ents.empty())
+			return;
 
 		CompPhysics  *phys; 
 		CompPosition *pos; 
@@ -227,9 +232,9 @@ public:
 	}
 };
 
-void InitEntities()
+Entity *MakePlayer()
 {
-	//Player
+	Entity *player = new Entity();
 	CompDraw *draw = new CompDraw();
 	CompPosition *pos = new CompPosition(); 
 	CompPlayer *ply = new CompPlayer();
@@ -237,12 +242,12 @@ void InitEntities()
 	CompController *cont = new CompController();
 	CompCollidable *col = new CompCollidable();
 
-	entitysystem.addComponent<CompDraw>(&player, draw); 
-	entitysystem.addComponent<CompPosition>(&player, pos);
-	entitysystem.addComponent<CompPlayer>(&player, ply);
-	entitysystem.addComponent<CompPhysics>(&player, phy); 
-	entitysystem.addComponent<CompController>(&player, cont);
-	entitysystem.addComponent<CompCollidable>(&player, col); 
+	entitysystem.addComponent<CompDraw>(player, draw); 
+	entitysystem.addComponent<CompPosition>(player, pos);
+	entitysystem.addComponent<CompPlayer>(player, ply);
+	entitysystem.addComponent<CompPhysics>(player, phy); 
+	entitysystem.addComponent<CompController>(player, cont);
+	entitysystem.addComponent<CompCollidable>(player, col); 
 
 	phy->funcs.push_back(&simplePhysicsStep); 
 	cont->funcs.push_back(&mouseControl); 
@@ -258,27 +263,12 @@ void InitEntities()
 	draw->texture.LoadFromImage(image);
 	draw->sprite.SetTexture(draw->texture);
 
-	//object
-	CompDraw *draw1 = new CompDraw();
-	CompPosition *pos1 = new CompPosition(); 
-	CompPhysics *phy1 = new CompPhysics();
-	CompCollidable *col1 = new CompCollidable();
+	return player;
+}
 
-	entitysystem.addComponent<CompDraw>(&object, draw1); 
-	entitysystem.addComponent<CompPosition>(&object, pos1);
-	entitysystem.addComponent<CompPhysics>(&object, phy1); 
-	entitysystem.addComponent<CompCollidable>(&object, col1);
-
-	phy1->funcs.push_back(&simplePhysicsStep); 
-	draw1->funcs.push_back(&DrawEntities);
-	col1->funcs.push_back(&HandleCollision);
-
-	phy1->speedx = 300.0f; 
-	phy1->speedy = 300.0f;
-
-	pos1->position = sf::Vector2f(0, 300); 
-
-	draw1->sprite.SetTexture(draw->texture);
+void InitEntities()
+{
+	Entity* ply = MakePlayer();
 }
 
 int main()
@@ -294,6 +284,9 @@ int main()
 	bool inventory = false;
 	int invX; 
 	int invY;
+
+	std::vector<Entity*> players; entitysystem.getEntities<CompPlayer>(players); 
+	Entity* ply = players[0];
 
     // Start game loop
 	while (App.IsOpen())
@@ -325,7 +318,8 @@ int main()
 		ComponentTick<CompDraw>(Clock.GetElapsedTime());
 
 		uistate.imgui_prepare();
-		widget::button(uistate, GEN_ID, sf::Vector2f(100, 30), sf::Vector2f(520, 10), "button", 24);
+		if( widget::button(uistate, GEN_ID, sf::Vector2f(100, 30), sf::Vector2f(520, 10), "button", 24) )
+			entitysystem.deleteEntity(ply);
 		if(inventory)
 			widget::button(uistate, GEN_ID, sf::Vector2f(100, 30), sf::Vector2f(invX, invY), "inventory", 20);
 		uistate.imgui_finish();
