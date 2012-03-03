@@ -6,12 +6,65 @@
 #include <boost/function.hpp>
 
 typedef int FamilyId;
+typedef int EventId;
+
 struct EntitySystem;
 
 struct Entity;
 
+struct Event_t
+{
+
+};
+
+struct Listener_t
+{
+
+};
+
+typedef std::map<EventId, Event_t*> EventMapType; 
+typedef boost::function<const EventMapType & (Component*, float elapsed)> behaviorFunction;
+
+struct ComponentSystem;
+
 struct Component {
-	std::vector< boost::function<void(Entity* ent, sf::Time elapsed)> > funcs; 
+	static ComponentSystem *componentSystem;
+
+	template<typename T> 
+	const std::vector<behaviorFunction> & getAs()
+	{
+		return componentSystem->getBehaviorRange<T>(this); 
+	}
+
+	std::multimap< EventId, behaviorFunction > behaviors; 
+};
+
+ComponentSystem *Component::componentSystem = 0;
+
+struct ComponentSystem
+{
+	ComponentSystem() {
+		if(!Component::componentSystem) 
+			Component::componentSystem = this;
+	}
+	
+	template<typename eventType> 
+	void AddBehavior(Component *comp, behaviorFunction func) {
+		comp->behaviors.insert(std::pair<eventType::familyId, behaviorFunction>(eventId, func) );
+	}
+
+	template<typename eventType> 
+	const std::vector<behaviorFunction> & getBehaviorRange(Component* comp)
+	{
+		std::vector<behaviorFunction> funcs; 
+
+		auto iter = comp->behaviors.equal_range(T::familyId);
+		for(auto it = iter.first; it != iter.second; ++it)
+			funcs.push_back(it->second);
+
+		return funcs; 
+	}
+
 };
 
 struct Entity {
@@ -25,6 +78,7 @@ struct Entity {
    template<typename Type> Type *getAs();
    std::map<FamilyId, Component*> mComponents;
 };
+
 EntitySystem *Entity::entitySystem = 0;
 
 struct EntitySystem {

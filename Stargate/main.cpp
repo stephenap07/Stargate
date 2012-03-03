@@ -29,6 +29,10 @@ enum {
 	DOWN  = 1 << 16
 };
 
+enum {
+	KEYBOARD = 0
+};
+
 class SubSystem 
 {
 protected:
@@ -114,6 +118,24 @@ void keyboardControl(Entity *ent, sf::Time elapsed)
 inline sf::Vector2f interpolate(const sf::Vector2f &a, const sf::Vector2f &b, float weight)
 {
 	return a + weight*(b-a); 
+}
+
+struct KeyboardEvent_t :public Event_t
+{
+	const static EventId familyId = KEYBOARD;
+	bool buttonPressed; 
+};
+
+const EventMapType & KeyboardBehavior(Component *comp, float elapsed)
+{
+	EventMapType eventMap;
+
+	KeyboardEvent_t *ev = new KeyboardEvent_t; 
+	ev->buttonPressed=true;
+
+	eventMap[KEYBOARD] = ev; 
+
+	return eventMap; 
 }
 
 void mouseControl(Entity* ent, sf::Time elapsed)
