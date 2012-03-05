@@ -18,7 +18,8 @@ enum {
 	PLAYER,
 	PHYSICS,
 	CONTROLLER,
-	COLLIDABLE
+	COLLIDABLE, 
+	PROJECTILE
 };
 
 enum {
@@ -29,26 +30,14 @@ enum {
 	DOWN  = 1 << 16
 };
 
-enum {
-	KEYBOARD = 0
-};
-
 class SubSystem 
 {
-protected:
-	template<typename T> void CallComponentFunctions(T* component, Entity* ent, sf::Time elapsed)
-	{
-		for( size_t i = 0; i < component->funcs.size(); ++i )
-		{
-			component->funcs[i](ent, elapsed); 
-		}
-	}
 public:
 	sf::RenderWindow *app; 
 	EntitySystem *entitySystem; 
 
 	SubSystem(sf::RenderWindow *wnd, EntitySystem *es) : app(wnd), entitySystem(es) {}
-	virtual void Tick(sf::Time elapsed) = 0;
+	virtual void Tick(float dt) = 0;
 };
 
 struct CompDraw : public Component
@@ -104,102 +93,20 @@ struct CompCollidable : public Component
 	static const FamilyId familyId = COLLIDABLE;
 
 	std::vector<Entity*> collidedEntities; 
+
+	bool collided; 
 };
 
-void keyboardControl(Entity *ent, sf::Time elapsed)
+struct CompProjectile :public Component
 {
-	if(sf::Keyboard::IsKeyPressed(sf::Keyboard::Right))
-		ent->getAs<CompPhysics>()->direction  = RIGHT;
-	else if(sf::Keyboard::IsKeyPressed(sf::Keyboard::Left))
-		ent->getAs<CompPhysics>()->direction = LEFT;
-	else ent->getAs<CompPhysics>()->direction = NONE; 
-}
-
-inline sf::Vector2f interpolate(const sf::Vector2f &a, const sf::Vector2f &b, float weight)
-{
-	return a + weight*(b-a); 
-}
-
-struct KeyboardEvent_t :public Event_t
-{
-	const static EventId familyId = KEYBOARD;
-	bool buttonPressed; 
+	const static FamilyId familyId = PROJECTILE; 
 };
-
-const EventMapType & KeyboardBehavior(Component *comp, float elapsed)
-{
-	EventMapType eventMap;
-
-	KeyboardEvent_t *ev = new KeyboardEvent_t; 
-	ev->buttonPressed=true;
-
-	eventMap[KEYBOARD] = ev; 
-
-	return eventMap; 
-}
-
-void mouseControl(Entity* ent, sf::Time elapsed)
-{
-	if(sf::Mouse::IsButtonPressed(sf::Mouse::Left))
-	{
-		ent->getAs<CompPhysics>()->target = sf::Vector2f((float)sf::Mouse::GetPosition(App).x, (float)sf::Mouse::GetPosition(App).y); 
-	}
-	ent->getAs<CompPosition>()->position = interpolate(ent->getAs<CompPosition>()->position, ent->getAs<CompPhysics>()->target, ent->getAs<CompPhysics>()->speedx*elapsed.AsSeconds()); 
-}
-
-void simplePhysicsStep(Entity* ent, sf::Time elapsed)
-{
-	CompPhysics  *phy = ent->getAs<CompPhysics>();
-
-	CompDraw *draw = ent->getAs<CompDraw>();
-
-	phy->bbox = draw->sprite.GetGlobalBounds();
-}
-
-void DrawEntities(Entity* ent, sf::Time elapsed)
-{
-	sf::Vector2f pos(ent->getAs<CompPosition>()->position.x,ent->getAs<CompPosition>()->position.y);
-
-	ent->getAs<CompDraw>()->sprite.SetPosition(pos);
-
-	App.Draw(ent->getAs<CompDraw>()->sprite); 
-}
-
-void HandleCollision(Entity* ent, sf::Time elapsed)
-{
-	CompCollidable *col = ent->getAs<CompCollidable>();
-
-	if(col->collidedEntities.size() > 0)
-		for(auto iter = col->collidedEntities.begin(); iter != col->collidedEntities.end(); ++iter)
-		{
-			std::cout << "ouch!\n";
-		}
-
-	col->collidedEntities.erase(col->collidedEntities.begin(), col->collidedEntities.end());
-}
-
-template <typename Comp> 
-void ComponentTick(sf::Time elapsed)
-{
-	std::vector<Entity*> ents; 
-	entitysystem.getEntities<Comp>(ents);
-
-	if(ents.empty())
-		return;
-
-	for(auto iter = ents.begin(); iter != ents.end(); ++iter)
-	{
-		for(size_t i = 0; i < (*iter)->getAs<Comp>()->funcs.size(); ++i)
-			(*iter)->getAs<Comp>()->funcs[i](*iter, elapsed); 		
-	}
-	
-}
 
 class PhysicsSub :public SubSystem
 {
 public:
 	PhysicsSub(sf::RenderWindow *wnd, EntitySystem *es) : SubSystem(wnd, es) {}
-	virtual void Tick(sf::Time elapsed) 
+	virtual void Tick(float dt) 
 	{
 		std::vector<Entity*> ents;
 		entitySystem->getEntities<CompPhysics>(ents);
@@ -216,22 +123,21 @@ public:
 			phys = (*iter)->getAs<CompPhysics>(); 
 			pos  = (*iter)->getAs<CompPosition>(); 
 			col  = (*iter)->getAs<CompCollidable>();
-
-			//process functions from physics components
-			CallComponentFunctions<CompPhysics>(phys, (*iter), elapsed);
-			CallComponentFunctions<CompCollidable>(col, (*iter), elapsed);
 			
 			//check wall collisions
 			if( (pos->position.x + phys->bbox.Width) > App.GetWidth() )
 			{
 				phys->direction = NONE; 
+				col->collided = true; 
 				pos->position.x = App.GetWidth() - phys->bbox.Width;
 			}
 			else if( (pos->position.x) < 0.0f )
 			{
+				col->collided = true; 
 				phys->direction = NONE; 
 				pos->position.x       = 0.0f;
 			}
+			else col->collided = false; 
 
 			//check entity collision
 			std::vector<Entity*>::iterator iter2; 
@@ -245,7 +151,11 @@ public:
 			if( (ents.size() > 1) && (iter != (ents.end()-1)) )
 				if( collides<float>(phys->bbox, (*iter2)->getAs<CompPhysics>()->bbox ) )
 				{
+					if(!(*iter2)->getAs<CompCollidable>())
+						continue; 
+
 					col->collidedEntities.push_back(*iter2); 
+
 					(*iter2)->getAs<CompCollidable>()->collidedEntities.push_back(*iter); 
 				}
 				
@@ -254,7 +164,75 @@ public:
 	}
 };
 
-Entity *MakePlayer()
+class ControllerSystem : public SubSystem
+{
+public:
+
+	ControllerSystem(sf::RenderWindow *wnd, EntitySystem *es) : SubSystem(wnd, es) {}
+
+	virtual void Tick(float dt)
+	{
+		std::vector<Entity*> players; 
+		entitysystem.getEntities<CompPlayer>(players);
+
+		CompPosition *pos; 
+		CompPhysics *phys; 
+
+		for(auto it = players.begin(); it != players.end(); ++it)
+		{
+			pos  = (*it)->getAs<CompPosition>(); 
+			phys = (*it)->getAs<CompPhysics>();
+
+			if(sf::Keyboard::IsKeyPressed(sf::Keyboard::Key::Right))
+				pos->position.x += phys->speedx * dt; 
+			else if( sf::Keyboard::IsKeyPressed(sf::Keyboard::Key::Left))
+				pos->position.x -= phys->speedx * dt; 
+
+			if(sf::Keyboard::IsKeyPressed(sf::Keyboard::Key::Up))
+				pos->position.y -= phys->speedy * dt; 
+			else if (sf::Keyboard::IsKeyPressed(sf::Keyboard::Key::Down))
+				pos->position.y += phys->speedy * dt; 
+		}
+	}
+};
+
+class ProjectileSystem : public SubSystem
+{
+public:
+	ProjectileSystem(sf::RenderWindow *wnd, EntitySystem *es) : SubSystem(wnd,es) {}
+
+	virtual void Tick(float dt)
+	{
+		std::vector<Entity*> ents; 
+		entitysystem.getEntities<CompProjectile>(ents);
+
+		for(auto it = ents.begin(); it != ents.end(); ++it)
+		{
+			(*it)->getAs<CompPosition>()->position.x += (*it)->getAs<CompPhysics>()->speedx * dt; 
+			if((*it)->getAs<CompCollidable>()->collided)
+				(*it)->getAs<CompPhysics>()->speedx = -(*it)->getAs<CompPhysics>()->speedx;
+		}
+	}
+};
+
+class RenderingSystem : public SubSystem
+{
+public:
+	RenderingSystem(sf::RenderWindow *wnd, EntitySystem *es) : SubSystem(wnd, es) {}
+	virtual void Tick(float dt)
+	{
+		std::vector<Entity*> ents; 
+		entitySystem->getEntities<CompDraw>(ents);
+
+		for(auto iter = ents.begin(); iter != ents.end(); ++iter)
+		{
+			(*iter)->getAs<CompDraw>()->sprite.SetPosition((*iter)->getAs<CompPosition>()->position); 
+			app->Draw((*iter)->getAs<CompDraw>()->sprite);
+		}
+	}
+};
+
+Entity *makePlayer()
 {
 	Entity *player = new Entity();
 	CompDraw *draw = new CompDraw();
@@ -271,12 +249,7 @@ Entity *MakePlayer()
 	entitysystem.addComponent<CompController>(player, cont);
 	entitysystem.addComponent<CompCollidable>(player, col); 
 
-	phy->funcs.push_back(&simplePhysicsStep); 
-	cont->funcs.push_back(&mouseControl); 
-	draw->funcs.push_back(&DrawEntities);
-	col->funcs.push_back(&HandleCollision);
-
-	phy->speedx = 10.0f; 
+	phy->speedx = 300.0f; 
 	phy->speedy = 300.0f;
 
 	sf::Image image;
@@ -288,9 +261,35 @@ Entity *MakePlayer()
 	return player;
 }
 
+Entity *makeProjectile()
+{
+	Entity *projectile = new Entity();
+
+	CompProjectile *pro = new CompProjectile();
+	CompPosition   *pos = new CompPosition(); 
+	CompDraw       *drw = new CompDraw(); 
+	CompPhysics    *phy = new CompPhysics();
+	CompCollidable *col = new CompCollidable();
+		
+	entitysystem.addComponent<CompPosition>(projectile, pos);
+	entitysystem.addComponent<CompDraw>(projectile, drw);
+	entitysystem.addComponent<CompPhysics>(projectile, phy);
+	entitysystem.addComponent<CompCollidable>(projectile, col);
+	entitysystem.addComponent<CompProjectile>(projectile, pro);
+
+	phy->speedx = 200.0f;
+
+	sf::Image img;
+	img.LoadFromFile("Data/ball.png");
+	drw->texture.LoadFromImage(img);
+	drw->sprite.SetTexture(drw->texture);
+
+	return projectile;
+}
+
 void InitEntities()
 {
-	Entity* ply = MakePlayer();
+	Entity* ply = makePlayer();
 }
 
 int main()
@@ -302,13 +301,17 @@ int main()
 
 	InitEntities();
 	PhysicsSub physSub(&App, &entitysystem); 
+	RenderingSystem renderSys(&App, &entitysystem);
+	ControllerSystem controller(&App, &entitysystem);
+	ProjectileSystem projSys(&App, &entitysystem);
 
 	bool inventory = false;
 	int invX; 
 	int invY;
 
-	std::vector<Entity*> players; entitysystem.getEntities<CompPlayer>(players); 
-	Entity* ply = players[0];
+	std::vector<Entity*> players; 
+	entitysystem.getEntities<CompPlayer>(players);
+	Entity* player = players[0];
 
     // Start game loop
 	while (App.IsOpen())
@@ -328,23 +331,27 @@ int main()
 					invX = sf::Mouse::GetPosition(App).x;
 					invY = sf::Mouse::GetPosition(App).y; 
 			}
+			if(Event.Type == sf::Event::MouseButtonPressed && Event.MouseButton.Button == sf::Mouse::Left)
+				makeProjectile();
 		}
-		
-		ComponentTick<CompController>(Clock.GetElapsedTime());
 
-		physSub.Tick(Clock.GetElapsedTime());
+		controller.Tick(Clock.GetElapsedTime().AsSeconds());
+		physSub.Tick(Clock.GetElapsedTime().AsSeconds());
+		projSys.Tick(Clock.GetElapsedTime().AsSeconds());
 
         // Clear the screen with red color
 		App.Clear(sf::Color::Black);
 
-		ComponentTick<CompDraw>(Clock.GetElapsedTime());
-
 		uistate.imgui_prepare();
-		if( widget::button(uistate, GEN_ID, sf::Vector2f(100, 30), sf::Vector2f(520, 10), "button", 24) )
-			entitysystem.deleteEntity(ply);
+		if(widget::button(uistate, GEN_ID, sf::Vector2f(100, 30), sf::Vector2f(520, 10), "button", 24))
+			entitysystem.deleteEntity(player);
 		if(inventory)
-			widget::button(uistate, GEN_ID, sf::Vector2f(100, 30), sf::Vector2f(invX, invY), "inventory", 20);
+			if(widget::button(uistate, GEN_ID, sf::Vector2f(100, 30), sf::Vector2f(invX, invY), "inventory", 20))
+				player = makePlayer();
+
 		uistate.imgui_finish();
+
+		renderSys.Tick(Clock.GetElapsedTime().AsSeconds());
 
         // Display window contents on screen
         App.Display();

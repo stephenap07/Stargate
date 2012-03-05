@@ -8,64 +8,10 @@
 typedef int FamilyId;
 typedef int EventId;
 
-struct EntitySystem;
-
-struct Entity;
-
-struct Event_t
-{
-
-};
-
-struct Listener_t
-{
-
-};
-
-typedef std::map<EventId, Event_t*> EventMapType; 
-typedef boost::function<const EventMapType & (Component*, float elapsed)> behaviorFunction;
-
-struct ComponentSystem;
-
 struct Component {
-	static ComponentSystem *componentSystem;
-
-	template<typename T> 
-	const std::vector<behaviorFunction> & getAs()
-	{
-		return componentSystem->getBehaviorRange<T>(this); 
-	}
-
-	std::multimap< EventId, behaviorFunction > behaviors; 
 };
 
-ComponentSystem *Component::componentSystem = 0;
-
-struct ComponentSystem
-{
-	ComponentSystem() {
-		if(!Component::componentSystem) 
-			Component::componentSystem = this;
-	}
-	
-	template<typename eventType> 
-	void AddBehavior(Component *comp, behaviorFunction func) {
-		comp->behaviors.insert(std::pair<eventType::familyId, behaviorFunction>(eventId, func) );
-	}
-
-	template<typename eventType> 
-	const std::vector<behaviorFunction> & getBehaviorRange(Component* comp)
-	{
-		std::vector<behaviorFunction> funcs; 
-
-		auto iter = comp->behaviors.equal_range(T::familyId);
-		for(auto it = iter.first; it != iter.second; ++it)
-			funcs.push_back(it->second);
-
-		return funcs; 
-	}
-
-};
+struct EntitySystem; 
 
 struct Entity {
    static EntitySystem *entitySystem;
@@ -86,8 +32,9 @@ struct EntitySystem {
       Entity::entitySystem = this;
    }
    template<typename T> T *getComponent(Entity *e) {
-	  assert(e->mComponents[T::familyId]);
-      return (T*)e->mComponents[T::familyId];
+	  if(e->mComponents[T::familyId])
+		return (T*)e->mComponents[T::familyId];
+	  else return 0;
    }
    template<typename T> void getEntities(std::vector<Entity*> &result) {
       auto iterPair = mComponentStore.equal_range(T::familyId);
@@ -101,20 +48,38 @@ struct EntitySystem {
    }
 
    void deleteEntity(Entity *e) {
-	   /*
-	   for(auto it = e->mComponents.begin(); it != e->mComponents.end(); ++it)
-	   {
-		   auto iterPair = mComponentStore.equal_range(it->first);
-		   iterPair
-		   delete it->second; 
-	   }
-	   e->mComponents.erase(e->mComponents.begin(), e->mComponents.end());
-	   delete e;
-	   */
+
+		for(auto iter = mComponentStore.begin(); iter != mComponentStore.end();)
+		{
+			auto it = iter++; 
+
+			if(iter == mComponentStore.end()) return;
+
+			//find components in entity and delete them
+			if(it->second == e)
+			{
+				Component* c = e->mComponents[it->first];
+
+				auto iterPair = e->mComponents.find(it->first); 
+
+				if(iterPair == e->mComponents.end())
+				{
+					std::cout << "no find\n";
+					break;
+				}
+				else e->mComponents.erase(iterPair);
+				
+				delete c; 
+			}
+
+			mComponentStore.erase(it);
+		}
+
+		delete e; 
    }
 
    void deleteAllEntities() {
-	   for(auto it = mComponentStore.begin(); it != mComponentStore.end(); ++it)
+	   for(auto it = mComponentStore.begin(); it != mComponentStore.end();)
 	   {
 		   Entity *ent = it->second;
 		   mComponentStore.erase(it);
