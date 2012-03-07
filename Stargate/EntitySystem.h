@@ -18,7 +18,6 @@ struct Entity {
    Entity();
    
    ~Entity() {
-	   std::cout << "entity destroyed\n";
    }
 
    template<typename Type> Type *getAs();
@@ -32,62 +31,42 @@ struct EntitySystem {
       Entity::entitySystem = this;
    }
    template<typename T> T *getComponent(Entity *e) {
-	  if(e->mComponents[T::familyId])
+	   if(e->mComponents.find(T::familyId) != e->mComponents.end())
 		return (T*)e->mComponents[T::familyId];
 	  else return 0;
    }
-   template<typename T> void getEntities(std::vector<Entity*> &result) {
-      auto iterPair = mComponentStore.equal_range(T::familyId);
-      for(auto iter = iterPair.first; iter != iterPair.second; ++iter) {
-         result.push_back(iter->second);
-      }
+   template<typename T> std::vector<Entity*> getEntities() {
+      if(mComponentStore.find(T::familyId) != mComponentStore.end())
+		  return mComponentStore[T::familyId]; 
+	  else {
+		  EntityVector a; 
+		  return a;
+	  }
    }
    template<typename T> void addComponent(Entity *e, T* comp) {
-      mComponentStore.insert(std::pair<FamilyId, Entity*>(T::familyId, e));
+      mComponentStore[T::familyId].push_back(e);
       e->mComponents.insert(std::pair<FamilyId, Component*>(T::familyId, comp));
    }
 
    void deleteEntity(Entity *e) {
-
-		for(auto iter = mComponentStore.begin(); iter != mComponentStore.end();)
-		{
-			auto it = iter++; 
-
-			if(iter == mComponentStore.end()) return;
-
-			//find components in entity and delete them
-			if(it->second == e)
-			{
-				Component* c = e->mComponents[it->first];
-
-				auto iterPair = e->mComponents.find(it->first); 
-
-				if(iterPair == e->mComponents.end())
-				{
-					std::cout << "no find\n";
-					break;
-				}
-				else e->mComponents.erase(iterPair);
-				
-				delete c; 
-			}
-
-			mComponentStore.erase(it);
-		}
-
-		delete e; 
+	   for(auto it = e->mComponents.begin(); it != e->mComponents.end(); ++it)
+	   {
+		   for(auto t = mComponentStore[it->first].begin(); t != mComponentStore[it->first].end(); ++t)
+		   {
+			   if ( (*t) == e) {
+				   delete e->mComponents[it->first];
+				   mComponentStore[it->first].erase(t); 
+			   }
+		   }
+	   }
    }
 
    void deleteAllEntities() {
-	   for(auto it = mComponentStore.begin(); it != mComponentStore.end();)
-	   {
-		   Entity *ent = it->second;
-		   mComponentStore.erase(it);
-		   deleteEntity(ent);
-	   }
+
    }
 protected:
-   std::multimap<FamilyId, Entity*> mComponentStore;
+	typedef std::vector<Entity*> EntityVector; 
+	std::map<FamilyId, EntityVector> mComponentStore;
 };
 
 Entity::Entity() {

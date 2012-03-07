@@ -53,7 +53,7 @@ namespace widget
 	int buttonImage(UIState & ui, int id, int x, int y, sf::Sprite & sprite);
 	
 	//textfield for writing in: i.e. high score
-	int textfield(UIState & ui, int id, const sf::FloatRect &rect, std::string &string);
+	int textfield(UIState &ui, int id, int x, int y, const sf::Vector2f &widthheight, std::string &string, int &place); 
 
 	int scrollbar(UIState & ui, int id , int x, int y, int max, int &value, int width =16, int height=256);
 

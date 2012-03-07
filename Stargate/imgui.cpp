@@ -4,6 +4,7 @@
 
 #include <iostream>
 #include <string>
+#include <sstream>
 #include <cmath>
 
 static float scale = .5f;
@@ -277,7 +278,7 @@ namespace widget
 	}
 
 	//textfield for writing in: i.e. high score
-	int textfield(UIState &ui, int id, const sf::Vector2f &widthheight, std::string &string)
+	int textfield(UIState &ui, int id, int x, int y, const sf::Vector2f &widthheight, std::string &string, int & place)
 	{
 		static float elapsed_time = 0;
 
@@ -289,6 +290,7 @@ namespace widget
 		field.SetFillColor( sf::Color(127,127,127) );
 		field.SetOutlineThickness( outline );
 		field.SetOutlineColor( outlinecolor );
+		field.SetPosition(x, y); 
 
 		sf::String str( string );
 		sf::Text txt( str );
@@ -333,29 +335,31 @@ namespace widget
 			ui.renderer->Draw(field);
 		}
 
-		//draw the text
-		ui.renderer->Draw(txt);
-		
-		sf::String caret("_");
-		sf::Text txt2(caret);
-
-		txt2.SetScale(scale,scale);
-
-		txt2.SetPosition(txt2.GetGlobalBounds().Width + txt2.GetGlobalBounds().Left, rect.Top+4);
-
-		if(ui.kbfocus == id && (uiClock.GetElapsedTime().AsSeconds() - elapsed_time) > 0.75f) 
+		if(ui.kbfocus == id && (uiClock.GetElapsedTime().AsSeconds() - elapsed_time) > 0.25) 
 		{
-			ui.renderer->Draw(txt2);
+			string.insert(place, "|");
+			txt.SetString(string);
 		}
 
-		if( (uiClock.GetElapsedTime().AsSeconds() - elapsed_time) > 1.0f)
+		
+		if( (uiClock.GetElapsedTime().AsSeconds() - elapsed_time) > .75f)
 			elapsed_time = uiClock.GetElapsedTime().AsSeconds();
+			
+
+		//draw the text
+		ui.renderer->Draw(txt);
 
 		int changed = 0;
 
 		//if has keyboard focus
 		if(ui.kbfocus == id)
 		{
+			char ch = string[place];
+	
+			if(ch == '|') {
+					string.erase(place, 1); 
+			}
+
 			switch(ui.keyentered)
 			{
 			case sf::Keyboard::Tab:
@@ -367,19 +371,45 @@ namespace widget
 
 					ui.keyentered = 0;
 				} break;
+			case sf::Keyboard::Right:
+				{
+					if(string.length() >= (place + 1))
+						place++;
+				}break;
+			case sf::Keyboard::Left:
+				{
+					if( 0 <= (place -1))
+						place--;
+				};break;
 			case sf::Keyboard::Back:
 				{
-					if(string.length() > 0)
+					if(string.length() > 0 && (place > 0) )
 					{
-						string.pop_back();
+						string.erase(place-1, 1); 
+						place--;
 						changed = 1;
 					}
 				} break;
+			case sf::Keyboard::Return:
+				{
+					if(string.length() > (place+1))
+					{
+						string.insert(place, "\n");
+						place++;
+					}
+					else {string.push_back('\n'); place++;}
+				} break;
 			}
 
-			if(ui.keychar >= 32 && ui.keychar < 127 && txt.GetGlobalBounds().Width < rect.Width -18)
+			if( ui.keychar >= 32 && ui.keychar < 127 && txt.GetGlobalBounds().Width < rect.Width -18)
 			{
-				string.push_back(ui.keychar);
+				if(string.length() > (place +1)) {
+					std::string str;
+					str.push_back(ui.keychar);
+					string.insert(place, str);
+					place++;
+				}
+				else { string.push_back(ui.keychar); place++;}
 				changed = 1;
 			}
 		}

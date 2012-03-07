@@ -5,6 +5,9 @@
 
 #include <algorithm>
 #include <math.h>
+#include <boost/lambda/lambda.hpp>
+#include <boost/property_tree/ptree.hpp>
+#include <boost/property_tree/json_parser.hpp>
 
 Entity object; 
 EntitySystem entitysystem; 
@@ -94,7 +97,7 @@ struct CompCollidable : public Component
 
 	std::vector<Entity*> collidedEntities; 
 
-	bool collided; 
+	bool didCollide; 
 };
 
 struct CompProjectile :public Component
@@ -108,8 +111,7 @@ public:
 	PhysicsSub(sf::RenderWindow *wnd, EntitySystem *es) : SubSystem(wnd, es) {}
 	virtual void Tick(float dt) 
 	{
-		std::vector<Entity*> ents;
-		entitySystem->getEntities<CompPhysics>(ents);
+		std::vector<Entity*> ents = entitySystem->getEntities<CompPhysics>();
 
 		if(ents.empty())
 			return;
@@ -123,21 +125,25 @@ public:
 			phys = (*iter)->getAs<CompPhysics>(); 
 			pos  = (*iter)->getAs<CompPosition>(); 
 			col  = (*iter)->getAs<CompCollidable>();
+
+			col->collidedEntities.clear();
+
+			phys->bbox = (*iter)->getAs<CompDraw>()->sprite.GetGlobalBounds();
 			
 			//check wall collisions
 			if( (pos->position.x + phys->bbox.Width) > App.GetWidth() )
 			{
+				col->didCollide = true; 
 				phys->direction = NONE; 
-				col->collided = true; 
 				pos->position.x = App.GetWidth() - phys->bbox.Width;
 			}
 			else if( (pos->position.x) < 0.0f )
 			{
-				col->collided = true; 
+				col->didCollide = true; 
 				phys->direction = NONE; 
 				pos->position.x       = 0.0f;
 			}
-			else col->collided = false; 
+			else col->didCollide = false; 
 
 			//check entity collision
 			std::vector<Entity*>::iterator iter2; 
@@ -172,8 +178,7 @@ public:
 
 	virtual void Tick(float dt)
 	{
-		std::vector<Entity*> players; 
-		entitysystem.getEntities<CompPlayer>(players);
+		std::vector<Entity*> players = entitysystem.getEntities<CompPlayer>();
 
 		CompPosition *pos; 
 		CompPhysics *phys; 
@@ -203,14 +208,28 @@ public:
 
 	virtual void Tick(float dt)
 	{
-		std::vector<Entity*> ents; 
-		entitysystem.getEntities<CompProjectile>(ents);
+		std::vector<Entity*> ents = entitysystem.getEntities<CompProjectile>();
 
 		for(auto it = ents.begin(); it != ents.end(); ++it)
 		{
 			(*it)->getAs<CompPosition>()->position.x += (*it)->getAs<CompPhysics>()->speedx * dt; 
-			if((*it)->getAs<CompCollidable>()->collided)
-				(*it)->getAs<CompPhysics>()->speedx = -(*it)->getAs<CompPhysics>()->speedx;
+			if((*it)->getAs<CompCollidable>()->didCollide)
+			{
+				(*it)->getAs<CompPhysics>()->speedx = -(*it)->getAs<CompPhysics>()->speedx; 
+				(*it)->getAs<CompPosition>()->position.x += (*it)->getAs<CompPhysics>()->speedx * dt;
+			}
+			if(!(*it)->getAs<CompCollidable>()->collidedEntities.empty())
+			{
+				CompCollidable * col = (*it)->getAs<CompCollidable>(); 
+				for(auto t = col->collidedEntities.begin(); t != col->collidedEntities.end(); ++t)
+				{
+					if ((*t)->getAs<CompProjectile>() != 0){
+						//entitySystem->deleteEntity((*t)); 
+						//entitySystem->deleteEntity((*it));
+						//break;
+					}
+				}
+			}
 		}
 	}
 };
@@ -221,8 +240,7 @@ public:
 	RenderingSystem(sf::RenderWindow *wnd, EntitySystem *es) : SubSystem(wnd, es) {}
 	virtual void Tick(float dt)
 	{
-		std::vector<Entity*> ents; 
-		entitySystem->getEntities<CompDraw>(ents);
+		std::vector<Entity*> ents = entitySystem->getEntities<CompDraw>();
 
 		for(auto iter = ents.begin(); iter != ents.end(); ++iter)
 		{
@@ -277,7 +295,7 @@ Entity *makeProjectile()
 	entitysystem.addComponent<CompCollidable>(projectile, col);
 	entitysystem.addComponent<CompProjectile>(projectile, pro);
 
-	phy->speedx = 200.0f;
+	phy->speedx = 500.0f;
 
 	sf::Image img;
 	img.LoadFromFile("Data/ball.png");
@@ -309,9 +327,22 @@ int main()
 	int invX; 
 	int invY;
 
-	std::vector<Entity*> players; 
-	entitysystem.getEntities<CompPlayer>(players);
+	std::vector<Entity*> players = entitysystem.getEntities<CompPlayer>();
 	Entity* player = players[0];
+
+	std::string text = "{\n \"player\":\n { \"x\": 0, \n \"speed\": \n {\n \"x\" : 300, \n\"y\" : 300 \n}\n }\n }"; 
+	int place = text.length();
+	std::stringstream stream; 
+	stream << text; 
+
+	boost::property_tree::ptree pt;
+	try{
+	boost::property_tree::read_json(stream, pt); 
+	}
+	catch(boost::property_tree::json_parser_error)
+	{
+
+	}
 
     // Start game loop
 	while (App.IsOpen())
@@ -335,12 +366,16 @@ int main()
 				makeProjectile();
 		}
 
-		controller.Tick(Clock.GetElapsedTime().AsSeconds());
+		if(!uistate.kbfocus)
+			controller.Tick(Clock.GetElapsedTime().AsSeconds());
+
 		physSub.Tick(Clock.GetElapsedTime().AsSeconds());
 		projSys.Tick(Clock.GetElapsedTime().AsSeconds());
 
         // Clear the screen with red color
 		App.Clear(sf::Color::Black);
+
+		renderSys.Tick(Clock.GetElapsedTime().AsSeconds());
 
 		uistate.imgui_prepare();
 		if(widget::button(uistate, GEN_ID, sf::Vector2f(100, 30), sf::Vector2f(520, 10), "button", 24))
@@ -348,10 +383,28 @@ int main()
 		if(inventory)
 			if(widget::button(uistate, GEN_ID, sf::Vector2f(100, 30), sf::Vector2f(invX, invY), "inventory", 20))
 				player = makePlayer();
+		if(widget::textfield(uistate, GEN_ID, 0, 200, sf::Vector2f(640, 300), text, place))
+		{
+			stream.clear();
+			stream << text; 
+			bool doit = true; 
+			
+			try{
+			boost::property_tree::read_json(stream, pt); 
+			}
+			catch(boost::property_tree::json_parser_error e)
+			{
+				doit = false; 
+			}
+			
+			if(doit) {
+				player->getAs<CompPosition>()->position.x = pt.get("player.x", (int)player->getAs<CompPosition>()->position.x); 
+				player->getAs<CompPhysics>()->speedx      = pt.get("player.speed.x", player->getAs<CompPhysics>()->speedx);
+				player->getAs<CompPhysics>()->speedy      = pt.get("player.speed.y", player->getAs<CompPhysics>()->speedy);
+			}
+		}
 
 		uistate.imgui_finish();
-
-		renderSys.Tick(Clock.GetElapsedTime().AsSeconds());
 
         // Display window contents on screen
         App.Display();
