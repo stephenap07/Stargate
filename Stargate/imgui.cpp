@@ -11,20 +11,20 @@ static float scale = .5f;
 
 //functions
 
- int UIState::regionhit(const sf::FloatRect &rect)
+int UIState::regionhit(const sf::FloatRect &rect)
 {
 	if ( rect.Contains(mousex, mousey) )
-	 return 1;
+		return 1;
 
-   return 0;
+	return 0;
 }
 
- void UIState::imgui_prepare()
+void UIState::imgui_prepare()
 {
 	hotitem = 0;
 }
 
- void UIState::imgui_finish()
+void UIState::imgui_finish()
 {
 	if(mousedown == 0)
 		activeitem = 0;
@@ -41,7 +41,7 @@ static float scale = .5f;
 	keychar = 0;
 }
 
- void UIState::uiEvents(const sf::Event &aEvent)
+void UIState::uiEvents(const sf::Event &aEvent)
 {
 	switch(aEvent.Type)
 	{
@@ -79,53 +79,53 @@ static float scale = .5f;
 }
 
 //helper functions for widgets
- bool UIState::processkeyboard(int id)
+bool UIState::processkeyboard(int id)
 {
 	if(kbfocus == id)
+	{
+		switch(keyentered)
 		{
-			switch(keyentered)
+			//if tab was pressed, lose keyboard focus for the next widget to pick it up
+		case sf::Keyboard::Tab:
 			{
-				//if tab was pressed, lose keyboard focus for the next widget to pick it up
-			case sf::Keyboard::Tab:
-				{
-					kbfocus = 0;
+				kbfocus = 0;
 
-					if( keymod )
-						kbfocus = lastwidget;
+				if( keymod )
+					kbfocus = lastwidget;
 
-					keyentered = 0;
-				}break;
+				keyentered = 0;
+			}break;
 
-			case sf::Keyboard::Return:
-				return true; 
-			}
+		case sf::Keyboard::Return:
+			return true; 
 		}
+	}
 
 	return false;
 }
 
- inline void RenderText(UIState &ui, const char* text, float x, float y, const sf::Color &color = sf::Color::White, unsigned size = 12)
- {
-	 //new stuff from sfml2
-	 sf::String str(text);
-	 sf::Text txt; 
-	 txt.SetString(str);
-	 txt.SetCharacterSize(size);
-	 //set center the string
-	 txt.SetOrigin(txt.GetLocalBounds().Width/2, txt.GetLocalBounds().Height/2);
-	 txt.SetPosition(x, y);
+inline void RenderText(UIState &ui, const char* text, float x, float y, const sf::Color &color = sf::Color::White, unsigned size = 12)
+{
+	//new stuff from sfml2
+	sf::String str(text);
+	sf::Text txt; 
+	txt.SetString(str);
+	txt.SetCharacterSize(size);
+	//set center the string
+	txt.SetOrigin(txt.GetLocalBounds().Width/2, txt.GetLocalBounds().Height/2);
+	txt.SetPosition(x, y);
 
-	 //drop shadow
-	 txt.SetColor(sf::Color(0,0,0,255/2));
-	 txt.Move(3,3);
-	 ui.renderer->Draw(txt);
+	//drop shadow
+	txt.SetColor(sf::Color(0,0,0,255/2));
+	txt.Move(3,3);
+	ui.renderer->Draw(txt);
 
-	 //draw the string
-	 txt.SetColor(color);
-	 txt.Move(-3,-3);
-	 
-	 ui.renderer->Draw(txt);
- }
+	//draw the string
+	txt.SetColor(color);
+	txt.Move(-3,-3);
+
+	ui.renderer->Draw(txt);
+}
 
 bool UIState::checkhot(int id, const sf::FloatRect & rect)
 {
@@ -185,7 +185,7 @@ namespace widget
 			outline = 2.5f;
 			button.SetOutlineThickness(outline);
 		}
-	
+
 
 		//render the button
 
@@ -228,8 +228,8 @@ namespace widget
 
 		//button was pressed
 		if (ui.mousedown == 0
-		&& ui.hotitem == id
-		&& ui.activeitem == id)
+			&& ui.hotitem == id
+			&& ui.activeitem == id)
 			return 1;
 
 		return 0;
@@ -270,8 +270,8 @@ namespace widget
 
 		//button was pressed
 		if (ui.mousedown == 0
-		&& ui.hotitem == id
-		&& ui.activeitem == id)
+			&& ui.hotitem == id
+			&& ui.activeitem == id)
 			return 1;
 
 		return 0;
@@ -341,10 +341,10 @@ namespace widget
 			txt.SetString(string);
 		}
 
-		
+
 		if( (uiClock.GetElapsedTime().AsSeconds() - elapsed_time) > .75f)
 			elapsed_time = uiClock.GetElapsedTime().AsSeconds();
-			
+
 
 		//draw the text
 		ui.renderer->Draw(txt);
@@ -355,9 +355,9 @@ namespace widget
 		if(ui.kbfocus == id)
 		{
 			char ch = string[place];
-	
+
 			if(ch == '|') {
-					string.erase(place, 1); 
+				string.erase(place, 1); 
 			}
 
 			switch(ui.keyentered)
@@ -528,8 +528,8 @@ namespace widget
 		}
 
 		if (ui.mousedown == 0
-		&& ui.hotitem == id
-		&& ui.activeitem == id)
+			&& ui.hotitem == id
+			&& ui.activeitem == id)
 		{
 			value = !value; 
 			return 1;

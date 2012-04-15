@@ -24,8 +24,8 @@ struct UIState
 	int keyentered;
 	int keymod;
 	int keychar;
-  
-    int lastwidget;
+
+	int lastwidget;
 	int lasthotitem;
 
 	//these methods need to be called from the outside
@@ -39,7 +39,7 @@ struct UIState
 	bool checkhot(int id, const sf::FloatRect & rect);
 
 	sf::RenderWindow* renderer;
-	
+
 };
 
 static sf::Clock uiClock;
@@ -51,12 +51,12 @@ namespace widget
 	int button(UIState & ui, int id, const sf::Vector2f &widthheight, const sf::Vector2f &pos, const char* text, float size = 12.0f);
 
 	int buttonImage(UIState & ui, int id, int x, int y, sf::Sprite & sprite);
-	
+
 	//textfield for writing in: i.e. high score
 	int textfield(UIState &ui, int id, int x, int y, const sf::Vector2f &widthheight, std::string &string, int &place); 
 
 	int scrollbar(UIState & ui, int id , int x, int y, int max, int &value, int width =16, int height=256);
 
 	int checkbox(UIState & ui, int id, int x, int y, bool &value, const char* title= 0);
-	
+
 } //widget
